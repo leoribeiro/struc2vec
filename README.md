@@ -12,7 +12,7 @@ To run *node2vec* on Zachary's karate club network, execute the following comman
 	``python src/main.py --input graph/karate.edgelist --output emb/karate.emd``
 
 #### Options
-You can check out the other options available to use with *node2vec* using:<br/>
+You can check out the other options available to use with *struc2vec* using:<br/>
 	``python src/main.py --help``
 
 #### Input
@@ -32,7 +32,7 @@ The next *n* lines are as follows:
 	
 	node_id dim1 dim2 ... dimd
 
-where dim1, ... , dimd is the *d*-dimensional representation learned by *node2vec*.
+where dim1, ... , dimd is the *d*-dimensional representation learned by *struc2vec*.
 
 
 ### Miscellaneous
