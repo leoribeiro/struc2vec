@@ -296,10 +296,12 @@ def generate_distances_network(diameter):
         logging.info('Criando as redes de distâncias...')
         t0 = time()
         graphs = {}
+        weights_distances = {}
         weights = {}
         for layer in range(0,diameter + 1):
             graphs[layer] = defaultdict(list)
-            weights[layer] = defaultdict(float)
+            weights_distances[layer] = defaultdict(float)
+            weights[layer] = {}
 
 
         for vertices,layers in distances.iteritems():
@@ -308,8 +310,25 @@ def generate_distances_network(diameter):
                 vy = vertices[1]
                 graphs[layer][vx].append(vy)
                 graphs[layer][vy].append(vx)
-                weights[layer][vx,vy] = distance
-                weights[layer][vy,vx] = distance
+                weights_distances[layer][vx,vy] = distance
+                weights_distances[layer][vy,vx] = distance
+
+        logging.info('Transformando distâncias em pesos...')
+        
+        for layer,vertices in graphs.iteritems():
+            for v,neighbors in vertices.iteritems():
+                e_list = deque()
+                sum_w = 0.0
+                for n in neighbors:
+                    w = 1.0 / (float(weights_distances[layer][v,n]) + epsilon)
+                    e_list.append(w)
+                    sum_w += w
+
+                e_list = [x / sum_w for x in e_list]
+                weights[layer][v] = list(e_list)
+
+
+        logging.info('Pesos criados com sucesso.')
         
         logging.info('Redes de distâncias criadas com sucesso.')
         t1 = time()
@@ -318,50 +337,20 @@ def generate_distances_network(diameter):
         logging.info("Salvando distancesNets no disco...")
         saveVariableOnDisk(graphs,'distances_nets_graphs')
         saveVariableOnDisk(weights,'distances_nets_weights')
-
         
         
         return
 
 def chooseNeighbor(v,g,weights):
-    #t00 = time()
-
-    e_list = deque()
-    v_list = deque()
-
-    sum_w = 0.0
-
-    #t0 = time()
-    for e in g[v]:
-        w = 1.0 / (float(weights[v,e]) + epsilon)
-        e_list.append(w)
-        sum_w += w
-        v_list.append(e)
-
-    #t1 = time()
-    #logging.info('Listas de pesos e vizinhos salvas em {}s'.format((t1-t0)))
-
-    #t0 = time()
-    if(sum_w != 0):
-        e_list = [x / sum_w for x in e_list]
-    else:
-        e_list = [1.0 / len(e_list) for x in e_list]
-    #t1 = time()
-    #logging.info('Pesos normalizados em {}s'.format((t1-t0)))
-
-    #t0 = time()
-    v = np.random.choice(v_list, p=e_list)
-    #t1 = time()
-    #logging.info('Método random.choice executado em {}s'.format((t1-t0)))
-
-    #t11 = time()
-    #logging.info('Método escolhe vizinho executado em {}s'.format((t11-t00)))
-
+    v_list = np.array(g[v],dtype='int')
+    w_list = np.array(weights[v],dtype='float')
+    v = np.random.choice(v_list, p=w_list)
     return v
 
 
 
 def exec_random_walk(graphs,weights,v,walk_length):
+    t0 = time()
     initialLayer = 0
     layer = initialLayer
 
@@ -386,6 +375,9 @@ def exec_random_walk(graphs,weights,v,walk_length):
                 if(layer < len(graphs) - 1):
                     if(v in graphs[layer + 1]):
                         layer = layer + 1
+
+    t1 = time()
+    logging.info('RW para vértice {} executada em : {}s'.format(v,(t1-t0)))
 
     return path
 

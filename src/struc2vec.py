@@ -239,22 +239,26 @@ class Graph():
 
 	def create_distances_network(self):
 
-		with ProcessPoolExecutor(max_workers=self.workers) as executor:
-			job = executor.submit(generate_distances_network,self.diameter)
+		generate_distances_network(self.diameter)
 
-			job.result()
+		# with ProcessPoolExecutor(max_workers=self.workers) as executor:
+		# 	job = executor.submit(generate_distances_network,self.diameter)
 
-		return
+		# 	job.result()
+
+		# return
 
 
 	def simulate_walks(self,num_walks,walk_length):
 
-		with ProcessPoolExecutor(max_workers=self.workers) as executor:
-			job = executor.submit(generate_random_walks,num_walks,walk_length,self.workers)
+		generate_random_walks(num_walks,walk_length,self.workers)
 
-			job.result()
+		# with ProcessPoolExecutor(max_workers=self.workers) as executor:
+		# 	job = executor.submit(generate_random_walks,num_walks,walk_length,self.workers)
 
-		return		
+		# 	job.result()
+
+		# return		
       	
 
 
