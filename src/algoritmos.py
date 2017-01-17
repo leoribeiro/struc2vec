@@ -299,33 +299,36 @@ def generate_distances_network(diameter):
         weights_distances = {}
         weights = {}
         for layer in range(0,diameter + 1):
-            graphs[layer] = defaultdict(list)
             weights_distances[layer] = defaultdict(float)
-            weights[layer] = {}
 
 
         for vertices,layers in distances.iteritems():
             for layer,distance in layers.iteritems():
                 vx = vertices[0]
                 vy = vertices[1]
-                graphs[layer][vx].append(vy)
-                graphs[layer][vy].append(vx)
+                if((layer,vx) not in graphs):
+                    graphs[layer,vx] = []
+                if((layer,vy) not in graphs):
+                    graphs[layer,vy] = []
+                graphs[layer,vx].append(vy)
+                graphs[layer,vy].append(vx)
                 weights_distances[layer][vx,vy] = distance
                 weights_distances[layer][vy,vx] = distance
 
         logging.info('Transformando distâncias em pesos...')
         
-        for layer,vertices in graphs.iteritems():
-            for v,neighbors in vertices.iteritems():
-                e_list = deque()
-                sum_w = 0.0
-                for n in neighbors:
-                    w = 1.0 / (float(weights_distances[layer][v,n]) + epsilon)
-                    e_list.append(w)
-                    sum_w += w
+        for k,neighbors in graphs.iteritems():
+            layer = k[0]
+            v = k[1]
+            e_list = deque()
+            sum_w = 0.0
+            for n in neighbors:
+                w = 1.0 / (float(weights_distances[layer][v,n]) + epsilon)
+                e_list.append(w)
+                sum_w += w
 
-                e_list = [x / sum_w for x in e_list]
-                weights[layer][v] = list(e_list)
+            e_list = [x / sum_w for x in e_list]
+            weights[layer,v] = list(e_list)
 
 
         logging.info('Pesos criados com sucesso.')
@@ -341,16 +344,20 @@ def generate_distances_network(diameter):
         
         return
 
-def chooseNeighbor(v,g,weights):
-    v_list = np.array(g[v],dtype='int')
-    w_list = np.array(weights[v],dtype='float')
+def chooseNeighbor(v,graphs,weights,layer):
+    v_list = graphs[layer,v]
+    w_list = weights[layer,v]
+
+    v_list = np.array(v_list,dtype='int')
+    w_list = np.array(w_list,dtype='float')
     v = np.random.choice(v_list, p=w_list)
+
     return v
 
 
 
-def exec_random_walk(graphs,weights,v,walk_length):
-    t0 = time()
+def exec_random_walk(graphs,weights,v,walk_length,diameter):
+    #t0 = time()
     initialLayer = 0
     layer = initialLayer
 
@@ -363,7 +370,7 @@ def exec_random_walk(graphs,weights,v,walk_length):
 
         #### Navega pela camada
         if(r < 0.33):
-                v = chooseNeighbor(v,graphs[layer],weights[layer])
+                v = chooseNeighbor(v,graphs,weights,layer)
                 path.append(v)
         #### Visita outras camadas
         else:
@@ -372,52 +379,73 @@ def exec_random_walk(graphs,weights,v,walk_length):
                 if(layer > initialLayer):
                     layer = layer - 1           
             else:
-                if(layer < len(graphs) - 1):
-                    if(v in graphs[layer + 1]):
+                if(layer < diameter):
+                    if((layer + 1,v) in graphs):
                         layer = layer + 1
 
-    t1 = time()
-    logging.info('RW para vértice {} executada em : {}s'.format(v,(t1-t0)))
+    #t1 = time()
+    #logging.info('RW para vértice {} executada em : {}s'.format(v,(t1-t0)))
 
     return path
 
-def generate_random_walks(num_walks,walk_length,workers):
 
-    initialLayer = 0
-    graphs = restoreVariableFromDisk('distances_nets_graphs')
-    weights = restoreVariableFromDisk('distances_nets_weights')
+def exec_ramdom_walks_for_chunck(vertices,graphs,weights,walk_length,diameter):
+    walks = deque()
+    for v in vertices:
+        walks.append(exec_random_walk(graphs,weights,v,walk_length,diameter))
+
+    return walks
+
+
+def generate_random_walks(num_walks,walk_length,workers,diameter):
+
+    graphs = Manager().dict()
+    weights = Manager().dict()
+
+    logging.info('Carregando distances_nets do disco...')
+
+    graphs_s = restoreVariableFromDisk('distances_nets_graphs')
+    weights_s = restoreVariableFromDisk('distances_nets_weights')
+    graphs.update(graphs_s)
+    weights.update(weights_s)
 
     logging.info('Criando RWs...')
     t0 = time()
+    
+    walks = deque()
+    initialLayer = 0
 
-    futures = {}
-    walks = []
-    nodes = list(graphs[initialLayer].keys())
+    vs = set()
+    for k in graphs.keys():
+        v = k[1]
+        vs.add(v)
 
-
-    manager = Manager()
-    graphs_s = manager.dict()
-    graphs_s.update(graphs)
-    weights_s = manager.dict()
-    weights_s.update(weights)
+    vertices = list(vs)
+    parts = workers
 
     with ProcessPoolExecutor(max_workers=workers) as executor:
         for walk_iter in range(num_walks):
-            random.shuffle(nodes)
-            for node in nodes:
-                logging.info("Criando RW para o vértice {} - Iteração {}".format(node,walk_iter))
-                job = executor.submit(exec_random_walk,graphs_s,weights_s,node,walk_length)
-                futures[job] = (node,walk_iter)
+            futures = {}
+            random.shuffle(vertices)
+            chunks = partition(vertices,parts)
+            part = 1
+            for c in chunks:
+                job = executor.submit(exec_ramdom_walks_for_chunck,c,graphs,weights,walk_length,diameter)
+                futures[job] = part
+                part += 1
 
-        logging.info("Recebendo resultados...")
-        for job in as_completed(futures):
-            walk = job.result()
-            r = futures[job]
-            logging.info("RW executada para o vértice: {}  - Iteração: {}".format(r[0],r[1]))
-            walks.append(walk)
+            logging.info("Recebendo resultados...")
+            for job in as_completed(futures):
+                walk = job.result()
+                r = futures[job]
+                logging.info("Iteração: {} - RWs da parte {} executadas.".format(walk_iter,r))
+                walks.extend(walk)
+                del futures[job]
 
     t1 = time()
     logging.info('RWs criadas em : {}m'.format((t1-t0)/60))
+
+    walks = list(walks)
 
     logging.info("Salvando Random Walks no disco...")
     saveVariableOnDisk(walks,'random_walks')

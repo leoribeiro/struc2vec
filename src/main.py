@@ -68,10 +68,12 @@ def learn_embeddings(walks):
 	'''
 	Learn embeddings by optimizing the Skipgram objective using SGD.
 	'''
-	walks = [map(str, walk) for walk in walks]
+	logging.info("Iniciando criação das representações...")
+	#walks = [map(str, walk) for walk in walks]
 	#model = Word2Vec(walks, size=args.dimensions, window=args.window_size, min_count=0, sg=1, workers=args.workers, iter=args.iter)
 	#model = Word2Vec(walks, size=args.dimensions, window=args.window_size, min_count=0, sg=1, workers=args.workers)
 	#model.save_word2vec_format(args.output)
+	logging.info("Representações criadas e salvas com sucesso.")
 	
 	return
 
@@ -81,17 +83,19 @@ def main(args):
 	'''
 	G = read_graph()
 	G = struc2vec.Graph(G, args.directed, args.workers)
-	G.calc_diameter()
+	#G.calc_diameter()
 	G.get_diameter()
-	G.preprocess_neighbors_with_bfs()
-	G.preprocess_calc_distances2()
-	G.preprocess_calc_distances_with_threshold()
+	#G.preprocess_neighbors_with_bfs()
+	#G.preprocess_calc_distances2()
+	#G.preprocess_calc_distances_with_threshold()
 
-	G.create_distances_network()
+	#G.create_distances_network()
 
 	#print G.distances
 
 	G.simulate_walks(args.num_walks, args.walk_length)
+
+	#walks = G.get_ramdom_walks()
 	#learn_embeddings(walks)
 
 if __name__ == "__main__":

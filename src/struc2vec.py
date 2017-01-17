@@ -239,26 +239,33 @@ class Graph():
 
 	def create_distances_network(self):
 
-		generate_distances_network(self.diameter)
+		with ProcessPoolExecutor(max_workers=self.workers) as executor:
+			job = executor.submit(generate_distances_network,self.diameter)
 
-		# with ProcessPoolExecutor(max_workers=self.workers) as executor:
-		# 	job = executor.submit(generate_distances_network,self.diameter)
+			job.result()
 
-		# 	job.result()
-
-		# return
+		return
 
 
 	def simulate_walks(self,num_walks,walk_length):
 
-		generate_random_walks(num_walks,walk_length,self.workers)
+		#generate_random_walks(num_walks,walk_length,self.workers,self.diameter)
 
-		# with ProcessPoolExecutor(max_workers=self.workers) as executor:
-		# 	job = executor.submit(generate_random_walks,num_walks,walk_length,self.workers)
+		with ProcessPoolExecutor(max_workers=self.workers) as executor:
+			job = executor.submit(generate_random_walks,num_walks,walk_length,self.workers,self.diameter)
 
-		# 	job.result()
+			job.result()
 
-		# return		
+		return	
+
+	def get_ramdom_walks(self):
+		logging.info("Recuperando RWs do disco...")
+		rws = restoreVariableFromDisk('random_walks')
+		logging.info("RWs recuperadas.")
+		return rws
+
+		
+
       	
 
 
