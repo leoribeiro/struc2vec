@@ -246,6 +246,15 @@ class Graph():
 
 		return
 
+	def preprocess_parameters_random_walk(self):
+
+		with ProcessPoolExecutor(max_workers=self.workers) as executor:
+			job = executor.submit(generate_parameters_random_walk)
+
+			job.result()
+
+		return
+
 
 	def simulate_walks(self,num_walks,walk_length):
 
@@ -257,6 +266,17 @@ class Graph():
 			job.result()
 
 		return	
+
+	def simulate_walk(self,visits_node):
+
+		generate_random_walk(visits_node,self.diameter)
+
+		# with ProcessPoolExecutor(max_workers=self.workers) as executor:
+		# 	job = executor.submit(generate_random_walks,visits_node,self.diameter)
+
+		# 	job.result()
+
+		# return	
 
 	def get_ramdom_walks(self):
 		logging.info("Recuperando RWs do disco...")

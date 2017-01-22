@@ -35,7 +35,13 @@ def parse_args():
 	parser.add_argument('--window-size', type=int, default=10,
                     	help='Context size for optimization. Default is 10.')
 
-	parser.add_argument('--iter', default=1, type=int,
+	parser.add_argument('--k', type=int, default=50,
+                    	help='')
+
+	parser.add_argument('--until-layer', type=int, default=2,
+                    	help='Calcula até a camada.')
+
+	parser.add_argument('--iter', default=5, type=int,
                       help='Number of epochs in SGD')
 
 	parser.add_argument('--workers', type=int, default=4,
@@ -58,7 +64,8 @@ def read_graph():
 	Reads the input network in networkx.
 	'''
 	logging.info(" - Carregando matriz de adjacência para Grafo (na memória)...")
-	G = graph.load_adjacencylist(args.input,undirected=True)
+	#G = graph.load_adjacencylist(args.input,undirected=True)
+	G = graph.load_edgelist(args.input,undirected=True)
 	logging.info(" - Convertendo grafo para Dict (na memória)...")
 	dictG = G.gToDict()
 
@@ -70,7 +77,7 @@ def learn_embeddings(walks):
 	'''
 	logging.info("Iniciando criação das representações...")
 	walks = [map(str, walk) for walk in walks]
-	model = Word2Vec(walks, size=args.dimensions, window=args.window_size, min_count=0, sg=1, workers=args.workers, iter=args.iter)
+	model = Word2Vec(walks, size=args.dimensions, window=args.window_size, min_count=0, hs=0, sg=1, workers=args.workers, iter=args.iter)
 	#model = Word2Vec(walks, size=args.dimensions, window=args.window_size, min_count=0, sg=1, workers=args.workers)
 	model.save_word2vec_format(args.output)
 	logging.info("Representações criadas e salvas com sucesso.")
@@ -82,18 +89,21 @@ def main(args):
 	Pipeline for representational learning for all nodes in a graph.
 	'''
 	G = read_graph()
-	G = struc2vec.Graph(G, args.directed, args.workers)
-	G.calc_diameter()
+	G = struc2vec.Graph(G, args.directed, args.workers,calcUntilLayer=args.until_layer)
+	#G.calc_diameter()
 	G.get_diameter()
 	#G.preprocess_neighbors_with_bfs()
 	#G.preprocess_calc_distances2()
 	#G.preprocess_calc_distances_with_threshold()
 
-	G.create_distances_network()
+	#G.create_distances_network()
+	G.preprocess_parameters_random_walk()
 
 	#print G.distances
 
 	G.simulate_walks(args.num_walks, args.walk_length)
+
+	#G.simulate_walk(args.k)
 
 	walks = G.get_ramdom_walks()
 	learn_embeddings(walks)

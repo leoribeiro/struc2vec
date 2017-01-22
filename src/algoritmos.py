@@ -11,7 +11,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import Manager
 from collections import defaultdict
 
-epsilon = 0.0000001
+epsilon = 0.01
 
 def getDegreeLists(g, root):
     t0 = time()
@@ -344,6 +344,45 @@ def generate_distances_network(diameter):
         
         return
 
+def generate_parameters_random_walk():
+
+    logging.info('Carregando distances_nets do disco...')
+
+    graphs = restoreVariableFromDisk('distances_nets_graphs')
+    weights = restoreVariableFromDisk('distances_nets_weights')
+
+    sum_weights = {}
+    amount_edges = {}
+    for k,list_weights in weights.iteritems():
+        layer = k[0]
+        if(layer not in sum_weights):
+            sum_weights[layer] = 0
+        if(layer not in amount_edges):
+            amount_edges[layer] = 0
+
+        for w in list_weights:
+            sum_weights[layer] += w
+            amount_edges[layer] += 1
+
+    average_weight = {}
+    for layer in sum_weights.keys():
+        average_weight[layer] = sum_weights[layer] / amount_edges[layer]
+
+    logging.info("Salvando average_weights no disco...")
+    saveVariableOnDisk(average_weight,'average_weight')
+
+
+    amount_neighbours = {}
+    for k,list_weights in weights.iteritems():
+        cont_neighbours = 0
+        for w in list_weights:
+            if(w <= average_weight):
+                cont_neighbours += 1
+        amount_neighbours[k] = cont_neighbours
+
+    logging.info("Salvando amount_neighbours no disco...")
+    saveVariableOnDisk(amount_neighbours,'amount_neighbours')
+
 def chooseNeighbor(v,graphs,weights,layer):
     v_list = graphs[layer,v]
     w_list = weights[layer,v]
@@ -356,7 +395,7 @@ def chooseNeighbor(v,graphs,weights,layer):
 
 
 
-def exec_random_walk(graphs,weights,v,walk_length,diameter):
+def exec_random_walk(graphs,weights,v,walk_length,diameter,amount_neighbours):
     #t0 = time()
     initialLayer = 0
     layer = initialLayer
@@ -375,7 +414,8 @@ def exec_random_walk(graphs,weights,v,walk_length,diameter):
         #### Visita outras camadas
         else:
             r = random.random()
-            if(r < 0.5):
+            limiar_moveup = prob_moveup(amount_neighbours[layer,v])
+            if(r > limiar_moveup):
                 if(layer > initialLayer):
                     layer = layer - 1           
             else:
@@ -389,25 +429,84 @@ def exec_random_walk(graphs,weights,v,walk_length,diameter):
     return path
 
 
-def exec_ramdom_walks_for_chunck(vertices,graphs,weights,walk_length,diameter):
+def exec_ramdom_walks_for_chunck(vertices,graphs,weights,walk_length,diameter,amount_neighbours):
     walks = deque()
     for v in vertices:
-        walks.append(exec_random_walk(graphs,weights,v,walk_length,diameter))
+        walks.append(exec_random_walk(graphs,weights,v,walk_length,diameter,amount_neighbours))
 
     return walks
 
 
-def generate_random_walks(num_walks,walk_length,workers,diameter):
+def generate_random_walks2(num_walks,walk_length,workers,diameter):
 
     graphs = Manager().dict()
     weights = Manager().dict()
+    amount_neighbours = Manager().dict()
 
     logging.info('Carregando distances_nets do disco...')
 
     graphs_s = restoreVariableFromDisk('distances_nets_graphs')
     weights_s = restoreVariableFromDisk('distances_nets_weights')
+    logging.info('Carregando amount_neighbours e average_weight do disco...')
+    amount_neighbours_s = restoreVariableFromDisk('amount_neighbours')
     graphs.update(graphs_s)
     weights.update(weights_s)
+    amount_neighbours.update(amount_neighbours_s)
+
+    logging.info('Criando RWs...')
+    t0 = time()
+    
+    walks = deque()
+    initialLayer = 0
+
+    vs = set()
+    for k in graphs.keys():
+        v = k[1]
+        vs.add(v)
+
+    vertices = list(vs)
+    parts = workers
+
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        
+        futures = {}
+        #random.shuffle(vertices)
+        for v in vertices:
+            for walk_iter in range(num_walks):
+                job = executor.submit(exec_random_walk,graphs,weights,v,walk_length,diameter,amount_neighbours)
+                futures[job] = (v,walk_iter)
+
+        logging.info("Recebendo resultados...")
+        for job in as_completed(futures):
+            walk = job.result()
+            r = futures[job]
+            logging.info("RW {} do vértice {} executada.".format(r[1],r[0]))
+            walks.append(walk)
+            del futures[job]
+
+    t1 = time()
+    logging.info('RWs criadas em : {}m'.format((t1-t0)/60))
+
+    walks = list(walks)
+
+    logging.info("Salvando Random Walks no disco...")
+    saveVariableOnDisk(walks,'random_walks')
+
+def generate_random_walks(num_walks,walk_length,workers,diameter):
+
+    graphs = Manager().dict()
+    weights = Manager().dict()
+    amount_neighbours = Manager().dict()
+
+    logging.info('Carregando distances_nets do disco...')
+
+    graphs_s = restoreVariableFromDisk('distances_nets_graphs')
+    weights_s = restoreVariableFromDisk('distances_nets_weights')
+    logging.info('Carregando amount_neighbours e average_weight do disco...')
+    amount_neighbours_s = restoreVariableFromDisk('amount_neighbours')
+    graphs.update(graphs_s)
+    weights.update(weights_s)
+    amount_neighbours.update(amount_neighbours_s)
 
     logging.info('Criando RWs...')
     t0 = time()
@@ -426,11 +525,11 @@ def generate_random_walks(num_walks,walk_length,workers,diameter):
     with ProcessPoolExecutor(max_workers=workers) as executor:
         for walk_iter in range(num_walks):
             futures = {}
-            random.shuffle(vertices)
+            #random.shuffle(vertices)
             chunks = partition(vertices,parts)
             part = 1
             for c in chunks:
-                job = executor.submit(exec_ramdom_walks_for_chunck,c,graphs,weights,walk_length,diameter)
+                job = executor.submit(exec_ramdom_walks_for_chunck,c,graphs,weights,walk_length,diameter,amount_neighbours)
                 futures[job] = part
                 part += 1
 
@@ -449,6 +548,97 @@ def generate_random_walks(num_walks,walk_length,workers,diameter):
 
     logging.info("Salvando Random Walks no disco...")
     saveVariableOnDisk(walks,'random_walks')
+
+
+def exec_random_walk_version2(graphs,weights,walk_length,amount_neighbours,visits_node,diameter,num_vertices):
+    t0 = time()
+    initialLayer = 0
+    layer = initialLayer
+
+    visits_nodes = [0] * (num_vertices + 1)
+    num_visited_vertices = 0
+
+    vs = set()
+    for k in graphs.keys():
+        v = k[1]
+        vs.add(v)
+    vs = list(vs)
+    ## Escolhe vértice inicial da RW
+    v = random.choice(vs)
+
+    path = deque()
+    visits_nodes[v] += 1
+    path.append(v)
+
+    #while len(path) < walk_length and num_visited_vertices < num_vertices:
+    while num_visited_vertices < num_vertices:
+        r = random.random()
+
+        #### Navega pela camada
+        if(r < 0.33):
+                v = chooseNeighbor(v,graphs,weights,layer)
+                path.append(v)
+
+                visits_nodes[v] += 1
+                if(visits_nodes[v] == visits_node):
+                    num_visited_vertices += 1
+                
+        #### Visita outras camadas
+        else:
+            r = random.random()
+            limiar_moveup = prob_moveup(amount_neighbours[layer,v])
+            if(r > limiar_moveup):
+                if(layer > initialLayer):
+                    layer = layer - 1           
+            else:
+                if(layer < diameter):
+                    if((layer + 1,v) in graphs):
+                        layer = layer + 1
+
+    t1 = time()
+    logging.info('Quantidade de vértices visitados {} vezes ou mais: {}'.format(visits_node,num_visited_vertices))
+    logging.info('RW executada em : {}s'.format((t1-t0)))
+
+    return path
+
+def prob_moveup(amount_neighbours):
+    return 0.5
+    #p = (1.0 - (1.0 / (math.log(amount_neighbours) + epsilon) ))
+    #if(p < 0):
+    #    p = epsilon
+    #return p
+
+
+def generate_random_walk(visits_node,diameter):
+
+    logging.info('Carregando distances_nets do disco...')
+    graphs = restoreVariableFromDisk('distances_nets_graphs')
+    weights = restoreVariableFromDisk('distances_nets_weights')
+
+    logging.info('Carregando amount_neighbours e average_weight do disco...')
+    amount_neighbours = restoreVariableFromDisk('amount_neighbours')
+    #average_weight = restoreVariableFromDisk('average_weight')
+
+    vs = set()
+    for k in graphs.keys():
+        v = k[1]
+        vs.add(v)
+
+    num_vertices = len(vs)
+    logging.info('Número de vértices: {}'.format(num_vertices))
+
+    walk_length = 1000.0 * visits_node * num_vertices * math.log(float(num_vertices))
+    logging.info('Tamanho máximo da RW: {}'.format(walk_length))
+
+    walk = exec_random_walk_version2(graphs,weights,walk_length,amount_neighbours,visits_node,diameter,num_vertices)
+
+    walks = [walk]
+
+    logging.info('Tamanho da RW: {}'.format(len(walk)))
+
+    logging.info("Salvando Random Walks no disco...")
+    saveVariableOnDisk(walks,'random_walks')
+
 
 
 
