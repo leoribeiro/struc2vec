@@ -72,7 +72,7 @@ class Graph(defaultdict):
     t1 = time()
     #logger.info('make_consistent: made consistent in {}s'.format(t1-t0))
 
-    self.remove_self_loops()
+    #self.remove_self_loops()
 
     return self
 

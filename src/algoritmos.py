@@ -26,6 +26,7 @@ def getDegreeLists(g, root):
     queue.append(root)
     vetor_marcacao[root] = 1
     
+
     l = deque()
     
     ## Variáveis de controle de distância
@@ -34,7 +35,7 @@ def getDegreeLists(g, root):
     timeToDepthIncrease = 1
 
     while queue:
-        vertex = queue.pop()
+        vertex = queue.popleft()
         timeToDepthIncrease -= 1
 
         l.append(len(g[vertex]))
@@ -51,8 +52,6 @@ def getDegreeLists(g, root):
             lp = np.sort(lp)
             #listas.append(lp)
             listas[depth] = lp
-
-
             l = deque()
 
             depth += 1
@@ -257,6 +256,8 @@ def consolidesDistances(distances,layer):
 
 def getDiameter(G):
     GX = utils_networkx.dictToGraph(G)
+    ne = sum([len(G[x]) for x in G.keys()])/2
+    logging.info('Número de arestas do grafo (dict): {} '.format(ne))
     logging.info('Número de vértices do grafo: {}'.format(GX.number_of_nodes()))
     logging.info('Número de arestas do grafo: {}'.format(GX.number_of_edges()))
     diameter = utils_networkx.getDiameter(GX)
@@ -374,9 +375,10 @@ def generate_parameters_random_walk():
 
     amount_neighbours = {}
     for k,list_weights in weights.iteritems():
+        layer = k[0]
         cont_neighbours = 0
         for w in list_weights:
-            if(w <= average_weight):
+            if(w <= average_weight[layer]):
                 cont_neighbours += 1
         amount_neighbours[k] = cont_neighbours
 
@@ -437,60 +439,6 @@ def exec_ramdom_walks_for_chunck(vertices,graphs,weights,walk_length,diameter,am
     return walks
 
 
-def generate_random_walks2(num_walks,walk_length,workers,diameter):
-
-    graphs = Manager().dict()
-    weights = Manager().dict()
-    amount_neighbours = Manager().dict()
-
-    logging.info('Carregando distances_nets do disco...')
-
-    graphs_s = restoreVariableFromDisk('distances_nets_graphs')
-    weights_s = restoreVariableFromDisk('distances_nets_weights')
-    logging.info('Carregando amount_neighbours e average_weight do disco...')
-    amount_neighbours_s = restoreVariableFromDisk('amount_neighbours')
-    graphs.update(graphs_s)
-    weights.update(weights_s)
-    amount_neighbours.update(amount_neighbours_s)
-
-    logging.info('Criando RWs...')
-    t0 = time()
-    
-    walks = deque()
-    initialLayer = 0
-
-    vs = set()
-    for k in graphs.keys():
-        v = k[1]
-        vs.add(v)
-
-    vertices = list(vs)
-    parts = workers
-
-    with ProcessPoolExecutor(max_workers=workers) as executor:
-        
-        futures = {}
-        #random.shuffle(vertices)
-        for v in vertices:
-            for walk_iter in range(num_walks):
-                job = executor.submit(exec_random_walk,graphs,weights,v,walk_length,diameter,amount_neighbours)
-                futures[job] = (v,walk_iter)
-
-        logging.info("Recebendo resultados...")
-        for job in as_completed(futures):
-            walk = job.result()
-            r = futures[job]
-            logging.info("RW {} do vértice {} executada.".format(r[1],r[0]))
-            walks.append(walk)
-            del futures[job]
-
-    t1 = time()
-    logging.info('RWs criadas em : {}m'.format((t1-t0)/60))
-
-    walks = list(walks)
-
-    logging.info("Salvando Random Walks no disco...")
-    saveVariableOnDisk(walks,'random_walks')
 
 def generate_random_walks(num_walks,walk_length,workers,diameter):
 
@@ -525,7 +473,7 @@ def generate_random_walks(num_walks,walk_length,workers,diameter):
     with ProcessPoolExecutor(max_workers=workers) as executor:
         for walk_iter in range(num_walks):
             futures = {}
-            #random.shuffle(vertices)
+            random.shuffle(vertices)
             chunks = partition(vertices,parts)
             part = 1
             for c in chunks:
