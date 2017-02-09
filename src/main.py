@@ -29,6 +29,9 @@ def parse_args():
 	parser.add_argument('--walk-length', type=int, default=80,
 	                    help='Length of walk per source. Default is 80.')
 
+	parser.add_argument('--walk-length-balls', type=int, default=80,
+	                    help='Length of walk per source. Default is 80.')
+
 	parser.add_argument('--num-walks', type=int, default=10,
 	                    help='Number of walks per source. Default is 10.')
 
@@ -92,20 +95,21 @@ def main(args):
 	G = struc2vec.Graph(G, args.directed, args.workers,calcUntilLayer=args.until_layer)
 	G.calc_diameter()
 	G.get_diameter()
+	G.calcUntilLayer = G.diameter
 	G.preprocess_neighbors_with_bfs()
-	G.preprocess_calc_distances2()
-	G.preprocess_calc_distances_with_threshold()
+	G.preprocess_calc_distances()
+	
+	#G.preprocess_calc_distances_with_threshold()
 
 	G.create_distances_network()
 	G.preprocess_parameters_random_walk()
 
-	#print G.distances
+	#G.calcSpectralGap()
 
 	G.simulate_walks(args.num_walks, args.walk_length)
 
-	#G.simulate_walk(args.k)
-
 	walks = G.get_ramdom_walks()
+
 	learn_embeddings(walks)
 
 if __name__ == "__main__":

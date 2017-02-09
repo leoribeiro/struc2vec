@@ -14,7 +14,9 @@ from collections import defaultdict
 import gc
 
 ### import local
-from algoritmos import *
+from utils import *
+from algorithms import *
+from algorithms_distances import *
 import graph
 
 
@@ -54,7 +56,7 @@ class Graph():
 		return
 
 
-	def preprocess_calc_distances2(self):
+	def preprocess_calc_distances(self):
 		futures = {}
 		distances = {}
 
@@ -88,84 +90,6 @@ class Graph():
 		preprocess_consolides_distances(distances)
 		logging.info("Salvando distâncias no disco...")
 		saveVariableOnDisk(distances,'distances')
-		return
-
-
-
-
-
-	def preprocess_calc_distances3(self):
-
-		self.distances = {}
-
-		vertices = reversed(sorted(self.degreeList.keys()))
-
-		pool = mp.Pool()
-
-		results = []
-
-		for v in vertices:
-			logging.info("Chamando método para calcular D ( {} ) para todos os vértices.".format(v))
-			r = pool.apply_async(calc_distances_from_v, args=(v,self.degreeList,self.calcUntilLayer,))
-			results.append(r)
-
-		for result in results:
-			r = result.get()
-			logging.info("D ( {} ) para todos os vértices calculadas.".format(r[1]))
-			self.distances.update(r[0])
-
-
-		print self.distances
-
-		preprocess_consolides_distances(self.distances)
-		return
-
-	def preprocess_calc_distances(self):
-
-		futures = {}
-		distances = {}
-
-		with ProcessPoolExecutor(max_workers = self.workers) as executor:
-
-			for vm,dsm in self.degreeList.iteritems():
-				for vd,dsd in self.degreeList.iteritems():
-					if(vd > vm):
-
-						distances[vm,vd] = {}
-
-						maxLayer = max(len(dsm),len(dsd))
-						for layer in range(0,maxLayer + 1):
-							if(layer > self.calcUntilLayer):
-								continue
-							if (layer in dsm) and (layer in dsd) :
-								logging.info("Chamando método para calcular D ( {} , {} ) na camada {}.".format(vm,vd,layer))
-								job = executor.submit(fastdtw,dsm[layer],dsd[layer],radius=1,dist=custo)
-								futures[job] = (vm,vd,layer)
-							else:
-								distances[vm,vd][layer] = -1.
-
-						if(len(futures) >= self.simultaneousCalculations):
-							logging.info("Recebendo resultados...")
-
-							for job in as_completed(futures):
-								dist = job.result()
-								r = futures[job]
-								logging.info("D ( {} , {} ) na camada {} calculada: {} ".format(r[0],r[1],r[2],dist[0]))
-								distances[r[0],r[1]][r[2]] = dist[0]
-
-								del futures[job]
-
-
-			logging.info("Recebendo resultados...")
-			for job in as_completed(futures):
-				dist = job.result()
-				r = futures[job]
-				logging.info("D ( {} , {} ) na camada {} calculada: {} ".format(r[0],r[1],r[2],dist[0]))
-				distances[r[0],r[1]][r[2]] = dist[0]
-
-		self.distances = distances
-
-		preprocess_consolides_distances(self.distances)
 		return
 
 
@@ -283,6 +207,26 @@ class Graph():
 		rws = restoreVariableFromDisk('random_walks')
 		logging.info("RWs recuperadas.")
 		return rws
+
+	def get_ramdom_walks_balls(self):
+		logging.info("Recuperando RWs do disco...")
+		rws = restoreVariableFromDisk('random_walks_balls')
+		logging.info("RWs recuperadas.")
+		return rws
+
+	def create_walks_from_balls(self,walk_length_balls):
+
+		#generate_random_walks_balls(self.G,self.workers,walk_length_balls)
+
+		with ProcessPoolExecutor(max_workers=self.workers) as executor:
+			job = executor.submit(generate_random_walks_balls,self.G,self.workers,walk_length_balls)
+
+			job.result()
+
+		return
+
+	def calcSpectralGap(self):
+		calcSpectralGap()
 
 		
 
