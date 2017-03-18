@@ -203,12 +203,17 @@ def load_edgelist(file_, undirected=True):
   G = Graph()
   with open(file_) as f:
     for l in f:
-      x, y = l.strip().split()[:2]
-      x = int(x)
-      y = int(y)
-      G[x].append(y)
-      if undirected:
-        G[y].append(x)
+      if(len(l.strip().split()[:2]) > 1):
+        x, y = l.strip().split()[:2]
+        x = int(x)
+        y = int(y)
+        G[x].append(y)
+        if undirected:
+          G[y].append(x)
+      else:
+        x = l.strip().split()[:2]
+        x = int(x[0])
+        G[x] = []  
   
   G.make_consistent()
   return G

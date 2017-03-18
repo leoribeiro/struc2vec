@@ -34,6 +34,18 @@ class Graph():
 	def get_diameter(self):
 		self.diameter = restoreVariableFromDisk('diameter')
 
+		# g = self.G
+		# maxDegree = 0
+		# minDegree = max(g.keys())
+		# for v in g.keys():
+		# 	if(len(g[v]) > maxDegree):
+		# 		maxDegree = len(g[v])
+		# 	if(len(g[v]) < minDegree):
+		# 		minDegree = len(g[v])
+
+		# print "MaxDegree",maxDegree
+		# print "MinDegree",minDegree
+
 		logging.info('Diâmetro do grafo: {}'.format(self.diameter))
 
 		
@@ -159,7 +171,13 @@ class Graph():
 
 			logging.info('Distâncias calculadas para a camada {}.'.format(layer))
 
+	def transform_distances_maxdistance(self):
+		with ProcessPoolExecutor(max_workers=self.workers) as executor:
+			job = executor.submit(preprocess_calculate_maxdistance)
 
+			job.result()
+
+		return
 
 	def create_distances_network(self):
 

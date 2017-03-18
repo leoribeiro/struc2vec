@@ -217,7 +217,7 @@ def exec_random_walk_version2(graphs,weights,walk_length,amount_neighbours,visit
 
 def prob_moveup(amount_neighbours):
     #return 0.5
-    p = (1.0 - (1.0 / (math.log(amount_neighbours + math.e) + epsilon) ))
+    p = ( 1.0 - (1.0 / (math.log(amount_neighbours + math.e))) )
     return p
 
 

@@ -93,16 +93,16 @@ def main(args):
 	'''
 	G = read_graph()
 	G = struc2vec.Graph(G, args.directed, args.workers,calcUntilLayer=args.until_layer)
-	G.calc_diameter()
+	#G.calc_diameter()
 	G.get_diameter()
 	G.calcUntilLayer = G.diameter
-	G.preprocess_neighbors_with_bfs()
-	G.preprocess_calc_distances()
+	#G.preprocess_neighbors_with_bfs()
+	#G.preprocess_calc_distances()
 	
 	#G.preprocess_calc_distances_with_threshold()
 
-	G.create_distances_network()
-	G.preprocess_parameters_random_walk()
+	#G.create_distances_network()
+	#G.preprocess_parameters_random_walk()
 
 	#G.calcSpectralGap()
 

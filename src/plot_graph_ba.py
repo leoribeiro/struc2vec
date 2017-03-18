@@ -10,7 +10,6 @@ import cPickle as pickle
 import random
 import argparse
 from gensim.models import Word2Vec
-from graph_tool.all import Graph,sfdp_layout,graph_draw
 #import matplotlib.pyplot as plt
 #import matplotlib.cm as cm
 import networkx as nx
@@ -90,115 +89,82 @@ parser.add_argument('--pickle', nargs='?', required=True,
                       help='Arquivo pickle.')
 parser.add_argument('--emb-file', nargs='?', required=True,
                       help='Arquivo de embeddings.')
-parser.add_argument('--edge-list', nargs='?', required=True,
-                      help='EdgeList a ser espelhada.')
 args = parser.parse_args()
 
 
-while True:
+print "Carregando arquivo..."
 
-    colorsVertex = {}
-    colorsAge = {}
+colorsVertex = {}
+colorsAge = {}
 
+g = nx.read_gpickle(args.pickle)
 
-    print "Carregando arquivo..."
-
-
-
-    g = nx.read_gpickle(args.pickle)
-
-    embeddings = Word2Vec.load_word2vec_format(args.emb_file, binary=False)
+embeddings = Word2Vec.load_word2vec_format(args.emb_file, binary=False)
 
 
 
-    x = []
-    y = []
-    n = []
-    colors_graph = []
-    for v in g.nodes():
-        l = str(v)
-        coords = embeddings[l]
-        x.append(coords[0])
-        y.append(coords[1])
-        n.append(l)
-        trataCores(v)
-        colors_graph.append(colorsVertex[v])
+x = []
+y = []
+n = []
+colors_graph = []
+for v in g.vertices():
+	l = str(v)
+	coords = embeddings[l]
+	x.append(coords[0])
+	y.append(coords[1])
+	n.append(l)
+    cor = trataCores(v)
+	colors_graph.append(cor)
 
 
 
-    width=2048
-    height=1024
-    axis=dict(showline=True, # hide axis line, grid, ticklabels and  title
-              zeroline=False,
-              showgrid=True,
-              showticklabels=True,
-              )
-    layout=Layout(title= '',  #
-        font= Font(),
-        #showlegend=False,
-        autosize=True,
-        width=width,
-        height=height,
-        xaxis=XAxis(axis),
-        yaxis=YAxis(axis),
-        margin=Margin(
-            l=25,
-            r=10,
-            b=20,
-            t=10,
-            pad=0,
-           
-        ),
-        hovermode='closest',
-        #plot_bgcolor='#EFECEA', #set background color            
-        )
+width=2048
+height=1024
+axis=dict(showline=True, # hide axis line, grid, ticklabels and  title
+          zeroline=False,
+          showgrid=True,
+          showticklabels=True,
+          )
+layout=Layout(title= '',  #
+    font= Font(),
+    #showlegend=False,
+    autosize=True,
+    width=width,
+    height=height,
+    xaxis=XAxis(axis),
+    yaxis=YAxis(axis),
+    margin=Margin(
+        l=25,
+        r=10,
+        b=20,
+        t=10,
+        pad=0,
+       
+    ),
+    hovermode='closest',
+    #plot_bgcolor='#EFECEA', #set background color            
+    )
 
-    trace = scatter_nodes([x,y],n,colors_graph)
+trace = scatter_nodes([x,y],n,colors_graph)
 
-    data=Data([trace])
+data=Data([trace])
 
-    fig = Figure(data=data, layout=layout)
+fig = Figure(data=data, layout=layout)
 
-    fig['layout'].update(annotations=make_annotations([x,y], n, colors_graph))
+fig['layout'].update(annotations=make_annotations([x,y], n, colors_graph))
 
-    image.save_as(fig,args.emb_file+"-grafico.png",scale=3)
-
-
+image.save_as(fig,args.emb_file+"-grafico.png",scale=3)
 
 
-    ######### BA graph
 
-    g = Graph(directed=False)
+'''
+g.vp.vertex_name[v]
+g.vertex_index[v]
+g.vertex(index)
+'''
 
-    edgelist = []
 
-    with open(args.edge_list) as f:
-        for line in f:
-            if(line):
-                edgelist.append(map(int,line.split()))
 
-    labels_vertices = g.add_edge_list(edgelist,hashed=True)
-    color = g.new_vertex_property("string")
-
-    for v in g.vertices():
-        index = g.vertex_index[v]
-        label = labels_vertices[v]
-        color[v] = colorsVertex[label]
-
-    labels_vertices_str = g.new_vertex_property("string")
-    for v in g.vertices():
-        labels_vertices_str[v] = str(labels_vertices[v])
-
-    vprops = {}
-    #vprops["font_size"] = 24
-    vprops["text"] = labels_vertices_str
-    vprops["fill_color"] = color
-
-    graph_draw(g,vprops=vprops,pos=sfdp_layout(g, cooling_step=0.99),output=args.emb_file+"-grafo.png",output_size=(2048,1024))
-
-    a = raw_input('Pressione uma tecla para continuar: ')
-    if(a and int(a) == 0):
-        break
 
 
 

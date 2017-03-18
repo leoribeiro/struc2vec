@@ -10,26 +10,24 @@ from utils import *
 
 logging.basicConfig(filename='grid_search.log',filemode='w',level=logging.DEBUG,format='%(asctime)s %(message)s')
 
-edge_list = "../ba.edgelist"
-mapeamento = "../mapeamento-barbell.pickle"
+edge_list = "../../toy-karate/espelhado-karate.edgelist"
+#mapeamento = "mapeamento-vertices.pickle"
 
 
-dimensions = [2,4,5,10,30,100,128]
+dimensions = [2,4,5,10,30,100]
 walk_lengths = [3,5,10,15,20,25,30,35,40,45,50,60,70,80,90,100,120] 
 num_walks = [1,3,5,10,15,20,25,30,40,50,60,70,80,90,100,200,400,500,1000]
 window_sizes = [1,2,3,5,10,12,15,20]
 
 dimensions = [2]
-walk_lengths = [3,5,10,15,20,25,30,35,40,45,50,60,70,80,90] 
-num_walks = [10,15,20,25,30,40]
-window_sizes = [2,5,10,15,20]
+walk_lengths = [5,10,15,20,30,40,50] 
+num_walks = [5,10,20,30,40,60,80,90]
+window_sizes = [3,5,10,20]
 
 # dimensions = [2]
-# walk_lengths = [3,5] 
-# num_walks = [1,3]
-# window_sizes = [1,2]
-
-
+# walk_lengths = [5] 
+# num_walks = [5]
+# window_sizes = [3]
 
 def exec_struc2vec(d,w,n,z,o):
 
@@ -62,49 +60,43 @@ def calc_euclidian_dists(o):
 	return dists
 
 def calc_network_dists():
-	graphs = restoreVariableFromDisk('distances_nets_graphs')
-	weights = restoreVariableFromDisk('distances_nets_weights')
+	distances = restoreVariableFromDisk('distances')
 
-	dists = {}
+	# dists = {}
 
-	for k,nbs in graphs.iteritems():
-		layer = k[0]
-		u = k[1]
-		for idx,v in enumerate(nbs):
-			if((u,v) not in dists):
-				dists[u,v] = {}
-			dists[u,v][layer] = weights[k][idx]
+	# for k,nbs in graphs.iteritems():
+	# 	layer = k[0]
+	# 	u = k[1]
+	# 	for idx,v in enumerate(nbs):
+	# 		if((u,v) not in dists):
+	# 			dists[u,v] = {}
+	# 		dists[u,v][layer] = weights[k][idx]
 
 	dists_r = {}
 	cont_r = {}
-	for k,layers in dists.iteritems():
+	for k,layers in distances.iteritems():
 		u = k[0]
 		v = k[1]
 
-		if((u,v) not in dists_r and (v,u) not in dists_r):
-				dists_r[u,v] = 0
-				cont_r[u,v] = 0
-
 		if((u,v) not in dists_r):
-			temp = u
-			u = v
-			v = temp
+			dists_r[u,v] = {}
+		if((v,u) not in dists_r):
+			dists_r[v,u] = {}
 
-		for l in layers.values():
-			dists_r[u,v] += l
-			cont_r[u,v] += 1
+		for l,va in layers.iteritems():
+			dists_r[u,v][l] = va
+			dists_r[v,u][l] = va
 
-	for k in dists_r.keys():
-		dists_r[k] = cont_r[k] / dists_r[k]
 
 	return dists_r
 
-def trataDistancias(d1,d2):
+def trataDistancias(d1,d2,camada):
 	v1 = []
 	v2 = []
 	for k in d1.keys():
-		v1.append(d1[k])
-		v2.append(d2[k])
+		if(camada in d1[k]):
+			v1.append(d1[k][camada])
+			v2.append(d2[k])
 
 	return v1,v2
 
@@ -122,7 +114,7 @@ def calc_correlation(d1,d2):
 
 
 
-
+correlacao_camadas = {}
 corr = 0
 config = {}
 for d in dimensions:
@@ -130,16 +122,25 @@ for d in dimensions:
 		for n in num_walks:
 			for z in window_sizes:
 				logging.info("Dimension: {} Walk-length: {} Num walks: {} Window size: {}.".format(d,w,n,z))
-				o = 'barbell-d'+str(d)+'-wl'+str(w)+'-nw'+str(n)+'-wz'+str(z)+'.emb'
+				o = 'karate-d'+str(d)+'-wl'+str(w)+'-nw'+str(n)+'-wz'+str(z)+'.emb'
 				o = '../dados/' + o
 				exec_struc2vec(d,w,n,z,o)
 				dists_e = calc_euclidian_dists(o)
 				dists_n = calc_network_dists()
 				#print len(dists_e),len(dists_n)
-				d1,d2 = trataDistancias(dists_n,dists_e)
+				
+				d1,d2 = trataDistancias(dists_n,dists_e,1)
 				#print len(d1),len(d2)
 				sp,pe = calc_correlation(d1,d2)
+				
 				if(abs(sp[0]) > corr):
+					correlacoes = {}
+					for camada in range(8):
+						d1,d2 = trataDistancias(dists_n,dists_e,camada)
+						#print len(d1),len(d2)
+						sp,pe = calc_correlation(d1,d2)
+						correlacoes[camada] = [sp,pe]
+					correlacao_camadas = correlacoes
 					corr = sp[0]
 					corr_v = sp
 					config['dimension'] = d
@@ -149,9 +150,12 @@ for d in dimensions:
 
 
 
+
 logging.info("Melhor correlação de Spearman: {}".format(corr_v))
 logging.info("Configuração:")
 logging.info("{}".format(config))
+
+logging.info("Correlações das camadas: {}".format(correlacao_camadas))
 
 
 

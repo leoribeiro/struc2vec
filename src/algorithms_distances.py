@@ -65,10 +65,13 @@ def getDegreeLists(g, root):
     return listas
 
 def custo(a,b):
-    m = max(a,b) + epsilon
-    mi = min(a,b) + epsilon
+    ep = 0.5
+    m = max(a,b) + ep
+    mi = min(a,b) + ep
+
     #print m,mi
-    return math.log(m / mi)
+    return ((m/mi) - 1)
+    #return math.log(m / mi)
 
 
 def calc_distances_from_v(v,degreeList,calcUntilLayer):
@@ -99,6 +102,8 @@ def calc_distances_from_v(v,degreeList,calcUntilLayer):
             logging.info('D ({} , {}), Tempo fastDTW da camada {} : {}s . Distância: {}'.format(v,vd,layer,(t1-t0),dist))    
 
             distances[v,vd][layer] = dist
+            #print dist
+            #distances[v,vd][layer] = math.exp(dist)
 
 
     t11 = time()
@@ -191,6 +196,31 @@ def calcThresholdDistance(layer,distances,fractionCalcDists):
 
     return threshold
 
+def preprocess_calculate_maxdistance():
+
+    distances = restoreVariableFromDisk('distances')
+
+    logging.info('Calculando exp das distâncias...')
+
+    maxDistance = defaultdict(float)
+    for vertices,layers in distances.iteritems():
+        for layer,distance in layers.iteritems():
+            if(distance > maxDistance[layer]):
+                maxDistance[layer] = distance
+
+    for vertices,layers in distances.iteritems():
+        for layer,distance in layers.iteritems():
+            r = np.exp(distance - maxDistance[layer])
+            if(r == 0):
+                print r, distance,maxDistance[layer]
+            distances[vertices][layer] = r
+            #distances[vertices][layer] = math.exp(distance)
+
+    logging.info('Exp das distâncias calculado.')
+
+    saveVariableOnDisk(distances,'distances')
+
+
 def preprocess_consolides_distances(distances, startLayer = 1):
 
     logging.info('Consolidando distâncias...')
@@ -276,8 +306,11 @@ def generate_distances_network(diameter):
             v = k[1]
             e_list = deque()
             sum_w = 0.0
+
+
             for n in neighbors:
-                w = 1.0 / (float(weights_distances[layer][v,n]) + epsilon)
+                w = np.exp(-float(weights_distances[layer][v,n]))
+                #print w,weights_distances[layer][v,n]
                 e_list.append(w)
                 sum_w += w
 
