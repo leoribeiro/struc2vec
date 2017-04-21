@@ -13,7 +13,7 @@ logging.basicConfig(filename='struc2vec.log',filemode='w',level=logging.DEBUG,fo
 
 def parse_args():
 	'''
-	Parses the node2vec arguments.
+	Parses the struc2vec arguments.
 	'''
 	parser = argparse.ArgumentParser(description="Run struc2vec.")
 
