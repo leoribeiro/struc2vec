@@ -36,7 +36,7 @@ To activate optmization 3:
 
 To run *struc2vec* on Barbell network, using all optmizations, execute the following command from the project home directory:
 <br/>
-``python src/main.py --input graph/barbell.edgelist --output emb/barbell.emb --num-walks 20 --walk-length 80 --window-size 5 --dimensions 2 --OPT1 True --OPT2 True --OPT3 True``
+``python src/main.py --input graph/barbell.edgelist --output emb/barbell.emb --num-walks 20 --walk-length 80 --window-size 5 --dimensions 2 --OPT1 True --OPT2 True --OPT3 True --until-layer 6``
 
 
 You can check out the other options available to use with *struc2vec* using:<br/>
