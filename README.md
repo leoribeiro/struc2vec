@@ -35,7 +35,10 @@ To activate optmization 3:
 ``--OPT3 true``
 <br/>
 
-A example of using *struc2vec* on Barbell graph, using all optimizations:
+To run *struc2vec* on Barbell network, using all optmizations, execute the following command from the project home directory:
+<br/>
+``python src/main.py --input graph/barbell.edgelist --output emb/barbell.emb --num-walks 20 --walk-length 80 --window-size 5 --OPT1 True --OPT2 True --OPT3 True``
+
 
 You can check out the other options available to use with *struc2vec* using:<br/>
 	``python src/main.py --help``
@@ -61,7 +64,4 @@ where dim1, ... , dimd is the *d*-dimensional representation learned by *struc2v
 
 ### Miscellaneous
 
-
 Please send any questions you might have about the code and/or the algorithm to <leo@land.ufrj.br>.
-=======
-
