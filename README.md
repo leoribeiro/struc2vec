@@ -10,11 +10,11 @@ The *struc2vec* algorithm learns continuous representations for nodes in any gra
 
 ### Basic Usage
 Before to execute *struc2vec*, it is necessary to install the following packages:
-<br>
+<br/>
 ``pip install futures``
-<br>
+<br/>
 ``pip install fastdtw``
-<br>
+<br/>
 ``pip install gensim``
 
 ### Basic Usage
@@ -25,12 +25,15 @@ To run *struc2vec* on Mirrored Zachary's karate club network, execute the follow
 
 #### Options
 
-To activate the optmization 1, use the following option:
+To activate optmization 1, use the following option:
 ``--OPT1 true``
-To activate the optmization 1, use the following option:
+<br/>
+To activate optmization 2:
 ``--OPT2 true``
-To activate the optmization 1, use the following option:
+<br/>
+To activate optmization 3:
 ``--OPT3 true``
+<br/>
 
 A example of using *struc2vec* on Barbell graph, using all optimizations:
 
