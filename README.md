@@ -8,7 +8,6 @@ This repository provides a reference implementation of *struc2vec* as described 
 
 The *struc2vec* algorithm learns continuous representations for nodes in any graph. *struc2vec* captures structural equivalence between nodes.  
 
-### Basic Usage
 Before to execute *struc2vec*, it is necessary to install the following packages:
 <br/>
 ``pip install futures``
