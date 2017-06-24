@@ -5,7 +5,8 @@ import argparse, logging
 import numpy as np
 import struc2vec
 from gensim.models import Word2Vec
-
+from gensim.models.word2vec import LineSentence
+from time import time
 
 import graph
 
@@ -29,20 +30,14 @@ def parse_args():
 	parser.add_argument('--walk-length', type=int, default=80,
 	                    help='Length of walk per source. Default is 80.')
 
-	parser.add_argument('--walk-length-balls', type=int, default=80,
-	                    help='Length of walk per source. Default is 80.')
-
 	parser.add_argument('--num-walks', type=int, default=10,
 	                    help='Number of walks per source. Default is 10.')
 
 	parser.add_argument('--window-size', type=int, default=10,
                     	help='Context size for optimization. Default is 10.')
 
-	parser.add_argument('--k', type=int, default=50,
-                    	help='')
-
-	parser.add_argument('--until-layer', type=int, default=2,
-                    	help='Calcula até a camada.')
+	parser.add_argument('--until-layer', type=int, default=None,
+                    	help='Calculation until the layer.')
 
 	parser.add_argument('--iter', default=5, type=int,
                       help='Number of epochs in SGD')
@@ -60,58 +55,75 @@ def parse_args():
 	parser.add_argument('--undirected', dest='undirected', action='store_false')
 	parser.set_defaults(directed=False)
 
+	parser.add_argument('--OPT1', default=False, type=bool,
+                      help='optimization 1')
+	parser.add_argument('--OPT2', default=False, type=bool,
+                      help='optimization 2')
+	parser.add_argument('--OPT3', default=False, type=bool,
+                      help='optimization 3')	
 	return parser.parse_args()
 
 def read_graph():
 	'''
-	Reads the input network in networkx.
+	Reads the input network.
 	'''
-	logging.info(" - Carregando matriz de adjacência para Grafo (na memória)...")
-	#G = graph.load_adjacencylist(args.input,undirected=True)
+	logging.info(" - Loading graph...")
 	G = graph.load_edgelist(args.input,undirected=True)
-	logging.info(" - Convertendo grafo para Dict (na memória)...")
-	dictG = G.gToDict()
+	logging.info(" - Graph loaded.")
+	return G
 
-	return dictG
-
-def learn_embeddings(walks):
+def learn_embeddings():
 	'''
 	Learn embeddings by optimizing the Skipgram objective using SGD.
 	'''
-	logging.info("Iniciando criação das representações...")
-	walks = [map(str, walk) for walk in walks]
+	logging.info("Initializing creation of the representations...")
+	walks = LineSentence('random_walks.txt')
 	model = Word2Vec(walks, size=args.dimensions, window=args.window_size, min_count=0, hs=1, sg=1, workers=args.workers, iter=args.iter)
-	#model = Word2Vec(walks, size=args.dimensions, window=args.window_size, min_count=0, sg=1, workers=args.workers)
-	model.save_word2vec_format(args.output)
-	logging.info("Representações criadas e salvas com sucesso.")
+	model.wv.save_word2vec_format(args.output)
+	logging.info("Representations created.")
 	
 	return
 
-def main(args):
+def exec_struc2vec(args):
 	'''
 	Pipeline for representational learning for all nodes in a graph.
 	'''
+	if(args.OPT3):
+		until_layer = args.until_layer
+	else:
+		until_layer = None
+
 	G = read_graph()
-	G = struc2vec.Graph(G, args.directed, args.workers,calcUntilLayer=args.until_layer)
-	#G.calc_diameter()
-	G.get_diameter()
-	G.calcUntilLayer = G.diameter
-	#G.preprocess_neighbors_with_bfs()
-	#G.preprocess_calc_distances()
-	
-	#G.preprocess_calc_distances_with_threshold()
+	G = struc2vec.Graph(G, args.directed, args.workers, untilLayer = until_layer)
 
-	#G.create_distances_network()
-	#G.preprocess_parameters_random_walk()
+	if(args.OPT1):
+		G.preprocess_neighbors_with_bfs_compact()
+	else:
+		G.preprocess_neighbors_with_bfs()
 
-	#G.calcSpectralGap()
+	if(args.OPT2):
+		G.create_vectors()
+		G.calc_distances(compactDegree = args.OPT1)
+	else:
+		G.calc_distances_all_vertices(compactDegree = args.OPT1)
+
+
+	G.create_distances_network()
+	G.preprocess_parameters_random_walk()
 
 	G.simulate_walks(args.num_walks, args.walk_length)
 
-	walks = G.get_ramdom_walks()
 
-	learn_embeddings(walks)
+	return G
+
+def main(args):
+
+	G = exec_struc2vec(args)
+
+	learn_embeddings()
+
 
 if __name__ == "__main__":
 	args = parse_args()
 	main(args)
+
