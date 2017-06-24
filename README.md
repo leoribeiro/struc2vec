@@ -4,7 +4,6 @@ This repository provides a reference implementation of *struc2vec* as described 
 > struc2vec: Learning Node Representations from Structural Identity.<br>
 > Leonardo F. R. Ribeiro, Pedro H. P. Saverese, Daniel R. Figueiredo.<br>
 > Knowledge Discovery and Data Mining, SigKDD, 2017.<br>
-> https://arxiv.org/abs/1704.03165
 
 The *struc2vec* algorithm learns continuous representations for nodes in any graph. *struc2vec* captures structural equivalence between nodes.  
 
