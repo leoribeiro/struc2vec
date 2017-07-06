@@ -23,17 +23,17 @@ To run *struc2vec* on Mirrored Zachary's karate club network, execute the follow
 
 #### Options
 
-To activate optmization 1, use the following option:
+To activate optimization 1, use the following option:
 ``--OPT1 true``
 <br/>
-To activate optmization 2:
+To activate optimization 2:
 ``--OPT2 true``
 <br/>
-To activate optmization 3:
+To activate optimization 3:
 ``--OPT3 true``
 <br/>
 
-To run *struc2vec* on Barbell network, using all optmizations, execute the following command from the project home directory:
+To run *struc2vec* on Barbell network, using all optimizations, execute the following command from the project home directory:
 <br/>
 ``python src/main.py --input graph/barbell.edgelist --output emb/barbell.emb --num-walks 20 --walk-length 80 --window-size 5 --dimensions 2 --OPT1 True --OPT2 True --OPT3 True --until-layer 6``
 
