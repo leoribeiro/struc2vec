@@ -64,4 +64,4 @@ where dim1, ... , dimd is the *d*-dimensional representation learned by *struc2v
 
 Please send any questions you might have about the code and/or the algorithm to <leo@land.ufrj.br>.
 
-*Note:* This is only a reference implementation of the *struc2vec* algorithm.
+*Note:* This is only a reference implementation of the framework *struc2vec*.
