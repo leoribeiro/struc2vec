@@ -19,7 +19,7 @@ Before to execute *struc2vec*, it is necessary to install the following packages
 
 #### Example
 To run *struc2vec* on Mirrored Zachary's karate club network, execute the following command from the project home directory:<br/>
-	``python src/main.py --input graph/karate-mirrored.edgelist --output emb/karate-mirrored.emd``
+	``python src/main.py --input graph/karate-mirrored.edgelist --output emb/karate-mirrored.emb``
 
 #### Options
 
