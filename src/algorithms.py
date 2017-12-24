@@ -54,7 +54,7 @@ def generate_parameters_random_walk(workers):
         for k,list_weights in weights.iteritems():
             cont_neighbours = 0
             for w in list_weights:
-                if(w <= average_weight[layer]):
+                if(w > average_weight[layer]):
                     cont_neighbours += 1
             amount_neighbours[layer][k] = cont_neighbours
 
@@ -195,7 +195,8 @@ def save_random_walks(walks):
     return
 
 def prob_moveup(amount_neighbours):
-    p = ( 1.0 - (1.0 / (math.log(amount_neighbours + math.e))) )
+    x = math.log(amount_neighbours + math.e)
+    p = (x / ( x + 1))
     return p
 
 
