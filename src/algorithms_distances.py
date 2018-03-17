@@ -258,10 +258,10 @@ def get_vertices(v,degree_v,degrees,a_vertices):
 
 def splitDegreeList(part,c,G,compactDegree):
     if(compactDegree):
-        logging.info("Recovering degreeList from disk...")
+        logging.info("Recovering compactDegreeList from disk...")
         degreeList = restoreVariableFromDisk('compactDegreeList')
     else:
-        logging.info("Recovering compactDegreeList from disk...")
+        logging.info("Recovering degreeList from disk...")
         degreeList = restoreVariableFromDisk('degreeList')
 
     logging.info("Recovering degree vector from disk...")
