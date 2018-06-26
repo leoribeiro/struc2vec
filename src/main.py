@@ -3,7 +3,6 @@
 
 import argparse, logging
 import graph
-import struc2vec
 from gensim.models import Word2Vec
 from gensim.models.word2vec import LineSentence
 
@@ -65,9 +64,9 @@ def read_graph():
     Reads the input network.
     """
     logging.info(" - Loading graph...")
-    G = graph.load_edgelist(args.input, undirected=True)
+    graph_dict = graph.load_edgelist(args.input, undirected=True)
     logging.info(" - Graph loaded.")
-    return G
+    return graph_dict
 
 
 def learn_embeddings():
@@ -93,8 +92,8 @@ def exec_struc2vec(args):
     else:
         until_layer = None
 
-    G = read_graph()
-    G = struc2vec.Graph(G, args.directed, args.workers, until_layer=until_layer)
+    graph_dict = read_graph()
+    G = graph.Graph(graph_dict, args.directed, args.workers, until_layer=until_layer)
 
     if (args.OPT1):
         G.preprocess_neighbors_with_bfs_compact()
@@ -103,7 +102,7 @@ def exec_struc2vec(args):
 
     if (args.OPT2):
         G.create_vectors()
-        G.calc_distances(compactDegree=args.OPT1)
+        G.calc_distances(compact_degree=args.OPT1)
     else:
         G.calc_distances_all_vertices(compact_degree=args.OPT1)
 
