@@ -17,14 +17,14 @@ class Graph():
         self.num_edges = number_of_edges_(d, is_directed)
         self.is_directed = is_directed
         self.workers = workers
-        self.calcUntilLayer = until_layer
+        self.calc_until_layer = until_layer
         logging.info('Graph - Number of vertices: {}'.format(self.num_vertices))
         logging.info('Graph - Number of edges: {}'.format(self.num_edges))
 
     def preprocess_neighbors_with_bfs(self):
 
         with ProcessPoolExecutor(max_workers=self.workers) as executor:
-            job = executor.submit(exec_bfs, self.G, self.workers, self.calcUntilLayer)
+            job = executor.submit(exec_bfs, self.G, self.workers, self.calc_until_layer)
 
             job.result()
 
@@ -33,7 +33,7 @@ class Graph():
     def preprocess_neighbors_with_bfs_compact(self):
 
         with ProcessPoolExecutor(max_workers=self.workers) as executor:
-            job = executor.submit(exec_bfs_compact, self.G, self.workers, self.calcUntilLayer)
+            job = executor.submit(exec_bfs_compact, self.G, self.workers, self.calc_until_layer)
 
             job.result()
 
@@ -56,7 +56,7 @@ class Graph():
         for v in G.keys():
             degree = len(G[v])
             degrees_sorted.add(degree)
-            if (degree not in degrees):
+            if degree not in degrees:
                 degrees[degree] = {}
                 degrees[degree]['vertices'] = deque()
             degrees[degree]['vertices'].append(v)
@@ -65,9 +65,9 @@ class Graph():
 
         l = len(degrees_sorted)
         for index, degree in enumerate(degrees_sorted):
-            if (index > 0):
+            if index > 0:
                 degrees[degree]['before'] = degrees_sorted[index - 1]
-            if (index < (l - 1)):
+            if index < (l - 1):
                 degrees[degree]['after'] = degrees_sorted[index + 1]
         logging.info("Degree vectors created.")
         logging.info("Saving degree vectors...")
@@ -76,14 +76,14 @@ class Graph():
     def calc_distances_all_vertices(self, compact_degree=False):
 
         logging.info("Using compactDegree: {}".format(compact_degree))
-        if (self.calcUntilLayer):
-            logging.info("Calculations until layer: {}".format(self.calcUntilLayer))
+        if self.calc_until_layer:
+            logging.info("Calculations until layer: {}".format(self.calc_until_layer))
 
         futures = {}
 
         vertices = list(reversed(sorted(self.G.keys())))
 
-        if (compact_degree):
+        if compact_degree:
             logging.info("Recovering degreeList from disk...")
             degreeList = restore_variable_from_disk('compactDegreeList')
         else:
@@ -103,7 +103,7 @@ class Graph():
                 list_v = []
                 for v in c:
                     list_v.append([vd for vd in degreeList.keys() if vd > v])
-                job = executor.submit(calc_distances_all, c, list_v, degreeList, part, compactDegree=compact_degree)
+                job = executor.submit(calc_distances_all, c, list_v, degreeList, part, compact_degree=compact_degree)
                 futures[job] = part
                 part += 1
 
@@ -123,8 +123,8 @@ class Graph():
     def calc_distances(self, compact_degree=False):
 
         logging.info("Using compactDegree: {}".format(compact_degree))
-        if (self.calcUntilLayer):
-            logging.info("Calculations until layer: {}".format(self.calcUntilLayer))
+        if self.calc_until_layer:
+            logging.info("Calculations until layer: {}".format(self.calc_until_layer))
 
         futures = {}
 
@@ -149,7 +149,7 @@ class Graph():
             part = 1
             for c in chunks:
                 logging.info("Executing part {}...".format(part))
-                job = executor.submit(calc_distances, part, compactDegree=compact_degree)
+                job = executor.submit(calc_distances, part, compact_degree=compact_degree)
                 futures[job] = part
                 part += 1
 
@@ -182,7 +182,7 @@ class Graph():
     def simulate_walks(self, num_walks, walk_length):
 
         # for large graphs, it is serially executed, because of memory use.
-        if (len(self.G) > 500000):
+        if len(self.G) > 500000:
 
             with ProcessPoolExecutor(max_workers=1) as executor:
                 job = executor.submit(generate_random_walks_large_graphs, num_walks, walk_length, self.workers,

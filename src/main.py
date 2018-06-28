@@ -95,12 +95,12 @@ def exec_struc2vec(args):
     graph_dict = read_graph()
     G = graph.Graph(graph_dict, args.directed, args.workers, until_layer=until_layer)
 
-    if (args.OPT1):
+    if args.OPT1:
         G.preprocess_neighbors_with_bfs_compact()
     else:
         G.preprocess_neighbors_with_bfs()
 
-    if (args.OPT2):
+    if args.OPT2:
         G.create_vectors()
         G.calc_distances(compact_degree=args.OPT1)
     else:

@@ -72,8 +72,8 @@ def choose_neighbour(v, graphs, alias_method_j, alias_method_q, layer):
 def exec_random_walk(graphs, alias_method_j, alias_method_q, v, walk_length, amount_neighbours):
     original_v = v
     t0 = time()
-    initialLayer = 0
-    layer = initialLayer
+    initial_layer = 0
+    layer = initial_layer
 
     path = deque()
     path.append(v)
@@ -89,7 +89,7 @@ def exec_random_walk(graphs, alias_method_j, alias_method_q, v, walk_length, amo
             r = random.random()
             limiar_moveup = prob_moveup(amount_neighbours[layer][v])
             if (r > limiar_moveup):
-                if (layer > initialLayer):
+                if (layer > initial_layer):
                     layer = layer - 1
             else:
                 if ((layer + 1) in graphs and v in graphs[layer + 1]):
@@ -120,18 +120,14 @@ def generate_random_walks_large_graphs(num_walks, walk_length, workers, vertices
     t0 = time()
 
     walks = deque()
-    initialLayer = 0
 
-    parts = workers
-
-    with ProcessPoolExecutor(max_workers=workers) as executor:
-        for walk_iter in range(num_walks):
-            random.shuffle(vertices)
-            logging.info("Execution iteration {} ...".format(walk_iter))
-            walk = exec_random_walks_for_chunk(vertices, graphs, alias_method_j, alias_method_q, walk_length,
-                                               amount_neighbours)
-            walks.extend(walk)
-            logging.info("Iteration {} executed.".format(walk_iter))
+    for walk_iter in range(num_walks):
+        random.shuffle(vertices)
+        logging.info("Execution iteration {} ...".format(walk_iter))
+        walk = exec_random_walks_for_chunk(vertices, graphs, alias_method_j, alias_method_q, walk_length,
+                                           amount_neighbours)
+        walks.extend(walk)
+        logging.info("Iteration {} executed.".format(walk_iter))
 
     t1 = time()
     logging.info('RWs created. Time : {}m'.format((t1 - t0) / 60))
@@ -151,9 +147,8 @@ def generate_random_walks(num_walks, walk_length, workers, vertices):
     t0 = time()
 
     walks = deque()
-    initialLayer = 0
 
-    if (workers > num_walks):
+    if workers > num_walks:
         workers = num_walks
 
     with ProcessPoolExecutor(max_workers=workers) as executor:
@@ -163,7 +158,6 @@ def generate_random_walks(num_walks, walk_length, workers, vertices):
             job = executor.submit(exec_random_walks_for_chunk, vertices, graphs, alias_method_j, alias_method_q,
                                   walk_length, amount_neighbours)
             futures[job] = walk_iter
-            # part += 1
         logging.info("Receiving results...")
         for job in as_completed(futures):
             walk = job.result()
@@ -196,9 +190,9 @@ def prob_moveup(amount_neighbours):
 
 
 def alias_draw(J, q):
-    '''
+    """
     Draw sample from a non-uniform discrete distribution using alias sampling.
-    '''
+    """
     K = len(J)
 
     kk = int(np.floor(np.random.rand() * K))

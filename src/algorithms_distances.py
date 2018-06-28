@@ -9,126 +9,122 @@ import os
 
 
 def get_degree_lists_vertices(g, vertices, calcUntilLayer):
-    degreeList = {}
+    degree_list = {}
 
     for v in vertices:
-        degreeList[v] = get_degree_lists(g, v, calcUntilLayer)
+        degree_list[v] = get_degree_lists(g, v, calcUntilLayer)
 
-    return degreeList
+    return degree_list
 
 
-def get_compact_degree_lists_vertices(g, vertices, maxDegree, calcUntilLayer):
-    degreeList = {}
+def get_compact_degree_lists_vertices(g, vertices, calc_until_layer):
+    degree_list = {}
 
     for v in vertices:
-        degreeList[v] = get_compact_degree_lists(g, v, maxDegree, calcUntilLayer)
+        degree_list[v] = get_compact_degree_lists(g, v, calc_until_layer)
 
-    return degreeList
+    return degree_list
 
 
-def get_compact_degree_lists(g, root, maxDegree, calcUntilLayer):
+def get_compact_degree_lists(g, root, calc_until_layer):
     t0 = time()
 
-    listas = {}
-    vetor_marcacao = [0] * (max(g) + 1)
+    lists = {}
+    vectors = [0] * (max(g) + 1)
 
-    # Marcar s e inserir s na fila Q
     queue = deque()
     queue.append(root)
-    vetor_marcacao[root] = 1
+    vectors[root] = 1
     l = {}
 
-    ## Variáveis de controle de distância
     depth = 0
-    pendingDepthIncrease = 0
-    timeToDepthIncrease = 1
+    pending_depth_increase = 0
+    time_to_depth_increase = 1
 
     while queue:
         vertex = queue.popleft()
-        timeToDepthIncrease -= 1
+        time_to_depth_increase -= 1
 
         d = len(g[vertex])
-        if (d not in l):
+        if d not in l:
             l[d] = 0
         l[d] += 1
 
         for v in g[vertex]:
-            if (vetor_marcacao[v] == 0):
-                vetor_marcacao[v] = 1
+            if vectors[v] == 0:
+                vectors[v] = 1
                 queue.append(v)
-                pendingDepthIncrease += 1
+                pending_depth_increase += 1
 
-        if (timeToDepthIncrease == 0):
+        if time_to_depth_increase == 0:
 
             list_d = []
             for degree, freq in l.iteritems():
                 list_d.append((degree, freq))
             list_d.sort(key=lambda x: x[0])
-            listas[depth] = np.array(list_d, dtype=np.int32)
+            lists[depth] = np.array(list_d, dtype=np.int32)
 
             l = {}
 
-            if (calcUntilLayer == depth):
+            if calc_until_layer == depth:
                 break
 
             depth += 1
-            timeToDepthIncrease = pendingDepthIncrease
-            pendingDepthIncrease = 0
+            time_to_depth_increase = pending_depth_increase
+            pending_depth_increase = 0
 
     t1 = time()
     logging.info('BFS vertex {}. Time: {}s'.format(root, (t1 - t0)))
 
-    return listas
+    return lists
 
 
-def get_degree_lists(g, root, calcUntilLayer):
+def get_degree_lists(g, root, calc_until_layer):
     t0 = time()
 
-    listas = {}
-    vetor_marcacao = [0] * (max(g) + 1)
+    lists = {}
+    vectors = [0] * (max(g) + 1)
 
-    # Marcar s e inserir s na fila Q
     queue = deque()
     queue.append(root)
-    vetor_marcacao[root] = 1
+    vectors[root] = 1
 
     l = deque()
 
-    ## Variáveis de controle de distância
     depth = 0
-    pendingDepthIncrease = 0
-    timeToDepthIncrease = 1
+    pending_depth_increase = 0
+    time_to_depth_increase = 1
 
     while queue:
         vertex = queue.popleft()
-        timeToDepthIncrease -= 1
+        time_to_depth_increase -= 1
 
         l.append(len(g[vertex]))
 
         for v in g[vertex]:
-            if (vetor_marcacao[v] == 0):
-                vetor_marcacao[v] = 1
+            if vectors[v] == 0:
+                vectors[v] = 1
                 queue.append(v)
-                pendingDepthIncrease += 1
+                pending_depth_increase += 1
 
-        if (timeToDepthIncrease == 0):
+        if time_to_depth_increase == 0:
 
             lp = np.array(l, dtype='float')
             lp = np.sort(lp)
-            listas[depth] = lp
+            lists[depth] = lp
             l = deque()
 
-            if (calcUntilLayer == depth):
+            if calc_until_layer == depth:
                 break
 
             depth += 1
-            timeToDepthIncrease = pendingDepthIncrease
-            pendingDepthIncrease = 0
+            time_to_depth_increase = pending_depth_increase
+            pending_depth_increase = 0
 
     t1 = time()
     logging.info('BFS vertex {}. Time: {}s'.format(root, (t1 - t0)))
 
-    return listas
+    return lists
 
 
 def cost(a, b):
@@ -158,7 +154,7 @@ def preprocess_degree_lists():
         for layer, degreeListLayer in layers.iteritems():
             d_frequency[v][layer] = {}
             for degree in degreeListLayer:
-                if (degree not in d_frequency[v][layer]):
+                if degree not in d_frequency[v][layer]:
                     d_frequency[v][layer][degree] = 0
                 d_frequency[v][layer][degree] += 1
     for v, layers in d_frequency.iteritems():
@@ -175,12 +171,12 @@ def preprocess_degree_lists():
     save_variable_on_disk(dList, 'compactDegreeList')
 
 
-def verifyDegrees(degrees, degree_v_root, degree_a, degree_b):
-    if (degree_b == -1):
+def verify_degrees(degree_v_root, degree_a, degree_b):
+    if degree_b == -1:
         degree_now = degree_a
-    elif (degree_a == -1):
+    elif degree_a == -1:
         degree_now = degree_b
-    elif (abs(degree_b - degree_v_root) < abs(degree_a - degree_v_root)):
+    elif abs(degree_b - degree_v_root) < abs(degree_a - degree_v_root):
         degree_now = degree_b
     else:
         degree_now = degree_a
@@ -190,64 +186,62 @@ def verifyDegrees(degrees, degree_v_root, degree_a, degree_b):
 
 def get_vertices(v, degree_v, degrees, a_vertices):
     a_vertices_selected = 2 * math.log(a_vertices, 2)
-    # logging.info("Selecionando {} próximos ao vértice {} ...".format(int(a_vertices_selected),v))
     vertices = deque()
 
     try:
         c_v = 0
 
         for v2 in degrees[degree_v]['vertices']:
-            if (v != v2):
+            if v != v2:
                 vertices.append(v2)
                 c_v += 1
-                if (c_v > a_vertices_selected):
+                if c_v > a_vertices_selected:
                     raise StopIteration
 
-        if ('before' not in degrees[degree_v]):
+        if 'before' not in degrees[degree_v]:
             degree_b = -1
         else:
             degree_b = degrees[degree_v]['before']
-        if ('after' not in degrees[degree_v]):
+        if 'after' not in degrees[degree_v]:
             degree_a = -1
         else:
             degree_a = degrees[degree_v]['after']
-        if (degree_b == -1 and degree_a == -1):
+        if degree_b == -1 and degree_a == -1:
             raise StopIteration
-        degree_now = verifyDegrees(degrees, degree_v, degree_a, degree_b)
+        degree_now = verify_degrees(degree_v, degree_a, degree_b)
 
         while True:
             for v2 in degrees[degree_now]['vertices']:
-                if (v != v2):
+                if v != v2:
                     vertices.append(v2)
                     c_v += 1
-                    if (c_v > a_vertices_selected):
+                    if c_v > a_vertices_selected:
                         raise StopIteration
 
-            if (degree_now == degree_b):
-                if ('before' not in degrees[degree_b]):
+            if degree_now == degree_b:
+                if 'before' not in degrees[degree_b]:
                     degree_b = -1
                 else:
                     degree_b = degrees[degree_b]['before']
             else:
-                if ('after' not in degrees[degree_a]):
+                if 'after' not in degrees[degree_a]:
                     degree_a = -1
                 else:
                     degree_a = degrees[degree_a]['after']
 
-            if (degree_b == -1 and degree_a == -1):
+            if degree_b == -1 and degree_a == -1:
                 raise StopIteration
 
-            degree_now = verifyDegrees(degrees, degree_v, degree_a, degree_b)
+            degree_now = verify_degrees(degree_v, degree_a, degree_b)
 
     except StopIteration:
-        # logging.info("Vértice {} - próximos selecionados.".format(v))
         return list(vertices)
 
     return list(vertices)
 
 
 def split_degree_list(part, c, G, compact_degree):
-    if (compact_degree):
+    if compact_degree:
         logging.info("Recovering compactDegreeList from disk...")
         degreeList = restore_variable_from_disk('compactDegreeList')
     else:
@@ -306,11 +300,11 @@ def calc_distances(part, compact_degree=False):
     return
 
 
-def calc_distances_all(vertices, list_vertices, degreeList, part, compactDegree=False):
+def calc_distances_all(vertices, list_vertices, degreeList, part, compact_degree=False):
     distances = {}
     cont = 0
 
-    if compactDegree:
+    if compact_degree:
         dist_func = cost_max
     else:
         dist_func = cost
@@ -325,10 +319,7 @@ def calc_distances_all(vertices, list_vertices, degreeList, part, compactDegree=
             distances[v1, v2] = {}
 
             for layer in range(0, max_layer):
-                # t0 = time()
                 dist, path = fastdtw(lists_v1[layer], lists_v2[layer], radius=1, dist=dist_func)
-                # t1 = time()
-                # logging.info('D ({} , {}), Tempo fastDTW da camada {} : {}s . Distância: {}'.format(v1,v2,layer,(t1-t0),dist))
                 distances[v1, v2][layer] = dist
 
         cont += 1
@@ -353,7 +344,7 @@ def preprocess_consolides_distances(distances, startLayer=1):
     logging.info('Distances consolidated.')
 
 
-def exec_bfs_compact(G, workers, calcUntilLayer):
+def exec_bfs_compact(G, workers, calc_until_layer):
     futures = {}
     degree_list = {}
 
@@ -362,24 +353,16 @@ def exec_bfs_compact(G, workers, calcUntilLayer):
     parts = workers
     chunks = partition(vertices, parts)
 
-    logging.info('Capturing larger degree...')
-    max_degree = 0
-    for v in vertices:
-        if (len(G[v]) > max_degree):
-            max_degree = len(G[v])
-    logging.info('Larger degree captured')
-
     with ProcessPoolExecutor(max_workers=workers) as executor:
 
         part = 1
         for c in chunks:
-            job = executor.submit(get_compact_degree_lists_vertices, G, c, max_degree, calcUntilLayer)
+            job = executor.submit(get_compact_degree_lists_vertices, G, c, calc_until_layer)
             futures[job] = part
             part += 1
 
         for job in as_completed(futures):
             dl = job.result()
-            v = futures[job]
             degree_list.update(dl)
 
     logging.info("Saving degreeList on disk...")
@@ -409,7 +392,6 @@ def exec_bfs(G, workers, calcUntilLayer):
 
         for job in as_completed(futures):
             dl = job.result()
-            v = futures[job]
             degree_list.update(dl)
 
     logging.info("Saving degreeList on disk...")
@@ -432,7 +414,7 @@ def generate_distances_network_part1(workers):
             for layer, distance in layers.iteritems():
                 vx = vertices[0]
                 vy = vertices[1]
-                if (layer not in weights_distances):
+                if layer not in weights_distances:
                     weights_distances[layer] = {}
                 weights_distances[layer][vx, vy] = distance
 
@@ -455,11 +437,11 @@ def generate_distances_network_part2(workers):
             for layer, distance in layers.iteritems():
                 vx = vertices[0]
                 vy = vertices[1]
-                if (layer not in graphs):
+                if layer not in graphs:
                     graphs[layer] = {}
-                if (vx not in graphs[layer]):
+                if vx not in graphs[layer]:
                     graphs[layer][vx] = []
-                if (vy not in graphs[layer]):
+                if vy not in graphs[layer]:
                     graphs[layer][vy] = []
                 graphs[layer][vx].append(vy)
                 graphs[layer][vy].append(vx)
@@ -624,11 +606,11 @@ def generate_distances_network(workers):
 
 
 def alias_setup(probs):
-    '''
+    """
     Compute utility lists for non-uniform sampling from discrete distributions.
     Refer to https://hips.seas.harvard.edu/blog/2013/03/03/the-alias-method-efficient-sampling-with-many-discrete-outcomes/
     for details
-    '''
+    """
     K = len(probs)
     q = np.zeros(K)
     J = np.zeros(K, dtype=np.int)
