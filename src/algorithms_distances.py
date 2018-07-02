@@ -80,6 +80,16 @@ def get_compact_degree_lists(g, root, calc_until_layer):
 
 
 def get_degree_lists(g, root, calc_until_layer):
+    """
+    Perform BFS to compute degree sequences at each k-distance ring around a given node.
+    Args:
+        g: the graph dictionary
+        root: the initial node
+        calc_until_layer: the maximum distance
+
+    Returns:
+    A dictionary mapping depths (int) to ordered degree sequences (np.array)
+    """
     t0 = time()
 
     lists = {}
@@ -139,36 +149,6 @@ def cost_max(a, b):
     m = max(a[0], b[0]) + ep
     mi = min(a[0], b[0]) + ep
     return ((m / mi) - 1) * max(a[1], b[1])
-
-
-def preprocess_degree_lists():
-    logging.info("Recovering degreeList from disk...")
-    degree_list = restore_variable_from_disk('degreeList')
-
-    logging.info("Creating compactDegreeList...")
-
-    dList = {}
-    d_frequency = {}
-    for v, layers in degree_list.iteritems():
-        d_frequency[v] = {}
-        for layer, degreeListLayer in layers.iteritems():
-            d_frequency[v][layer] = {}
-            for degree in degreeListLayer:
-                if degree not in d_frequency[v][layer]:
-                    d_frequency[v][layer][degree] = 0
-                d_frequency[v][layer][degree] += 1
-    for v, layers in d_frequency.iteritems():
-        dList[v] = {}
-        for layer, frequencyList in layers.iteritems():
-            list_d = []
-            for degree, freq in frequencyList.iteritems():
-                list_d.append((degree, freq))
-            list_d.sort(key=lambda x: x[0])
-            dList[v][layer] = np.array(list_d, dtype='float')
-
-    logging.info("compactDegreeList created!")
-
-    save_variable_on_disk(dList, 'compactDegreeList')
 
 
 def verify_degrees(degree_v_root, degree_a, degree_b):
@@ -243,10 +223,10 @@ def get_vertices(v, degree_v, degrees, a_vertices):
 def split_degree_list(part, c, G, compact_degree):
     if compact_degree:
         logging.info("Recovering compactDegreeList from disk...")
-        degreeList = restore_variable_from_disk('compactDegreeList')
+        degree_list = restore_variable_from_disk('compactDegreeList')
     else:
         logging.info("Recovering degreeList from disk...")
-        degreeList = restore_variable_from_disk('degreeList')
+        degree_list = restore_variable_from_disk('degreeList')
 
     logging.info("Recovering degree vector from disk...")
     degrees = restore_variable_from_disk('degrees_vector')
@@ -258,9 +238,9 @@ def split_degree_list(part, c, G, compact_degree):
     for v in c:
         nbs = get_vertices(v, len(G[v]), degrees, a_vertices)
         vertices[v] = nbs
-        degree_lists_selected[v] = degreeList[v]
+        degree_lists_selected[v] = degree_list[v]
         for n in nbs:
-            degree_lists_selected[n] = degreeList[n]
+            degree_lists_selected[n] = degree_list[n]
 
     save_variable_on_disk(vertices, 'split-vertices-' + str(part))
     save_variable_on_disk(degree_lists_selected, 'split-degreeList-' + str(part))
@@ -268,7 +248,7 @@ def split_degree_list(part, c, G, compact_degree):
 
 def calc_distances(part, compact_degree=False):
     vertices = restore_variable_from_disk('split-vertices-' + str(part))
-    degreeList = restore_variable_from_disk('split-degreeList-' + str(part))
+    degree_list = restore_variable_from_disk('split-degreeList-' + str(part))
 
     distances = {}
 
@@ -278,11 +258,11 @@ def calc_distances(part, compact_degree=False):
         dist_func = cost
 
     for v1, nbs in vertices.iteritems():
-        lists_v1 = degreeList[v1]
+        lists_v1 = degree_list[v1]
 
         for v2 in nbs:
             t00 = time()
-            lists_v2 = degreeList[v2]
+            lists_v2 = degree_list[v2]
 
             max_layer = min(len(lists_v1), len(lists_v2))
             distances[v1, v2] = {}
@@ -295,12 +275,23 @@ def calc_distances(part, compact_degree=False):
             t11 = time()
             logging.info('fastDTW between vertices ({}, {}). Time: {}s'.format(v1, v2, (t11 - t00)))
 
-    preprocess_consolides_distances(distances)
+    consolidate_distances(distances)
     save_variable_on_disk(distances, 'distances-' + str(part))
-    return
 
 
-def calc_distances_all(vertices, list_vertices, degreeList, part, compact_degree=False):
+def calc_distances_all(vertices, list_vertices, degree_list, part, compact_degree=False):
+    """
+    Compute the structural distance between any pair of nodes.
+    Args:
+        vertices: a chunk of vertices to compute distances between
+        list_vertices: a list of lists, containing for each vertex all other vertices to be compared with
+        degree_list: nested dictionary (vertex -> layer -> degree sequence)
+        part: index of the current chunk of vertices
+        compact_degree: boolean indicating whether to use the compact degree optimisation
+
+    Returns:
+        None (stores pickle on disk)
+    """
     distances = {}
     cont = 0
 
@@ -310,36 +301,43 @@ def calc_distances_all(vertices, list_vertices, degreeList, part, compact_degree
         dist_func = cost
 
     for v1 in vertices:
-        lists_v1 = degreeList[v1]
+        lists_v1 = degree_list[v1]
 
         for v2 in list_vertices[cont]:
-            lists_v2 = degreeList[v2]
+            lists_v2 = degree_list[v2]
 
             max_layer = min(len(lists_v1), len(lists_v2))
             distances[v1, v2] = {}
 
-            for layer in range(0, max_layer):
+            for layer in range(max_layer):
                 dist, path = fastdtw(lists_v1[layer], lists_v2[layer], radius=1, dist=dist_func)
                 distances[v1, v2][layer] = dist
 
         cont += 1
 
-    preprocess_consolides_distances(distances)
+    consolidate_distances(distances)
     save_variable_on_disk(distances, 'distances-' + str(part))
-    return
 
 
-def preprocess_consolides_distances(distances, startLayer=1):
+def consolidate_distances(distances):
+    """
+    In-place summing up of distances along the layers
+    Args:
+        distances: nested dictionary (v1, v2 -> layer -> distance)
+
+    Returns:
+        None (stores pickle on disk)
+    """
     logging.info('Consolidating distances...')
 
-    for vertices, layers in distances.iteritems():
-        keys_layers = sorted(layers.keys())
-        startLayer = min(len(keys_layers), startLayer)
-        for layer in range(0, startLayer):
-            keys_layers.pop(0)
+    for vertices, distance_by_layer in distances.iteritems():
+        layers = sorted(distance_by_layer.keys())
+        start_layer = min(len(layers), 1)
+        for layer in range(0, start_layer):
+            layers.pop(0)
 
-        for layer in keys_layers:
-            layers[layer] += layers[layer - 1]
+        for layer in layers:
+            distance_by_layer[layer] += distance_by_layer[layer - 1]
 
     logging.info('Distances consolidated.')
 
@@ -370,10 +368,8 @@ def exec_bfs_compact(G, workers, calc_until_layer):
     t1 = time()
     logging.info('Execution time - BFS: {}m'.format((t1 - t0) / 60))
 
-    return
 
-
-def exec_bfs(G, workers, calcUntilLayer):
+def exec_bfs(G, workers, calc_until_layer):
     futures = {}
     degree_list = {}
 
@@ -386,7 +382,7 @@ def exec_bfs(G, workers, calcUntilLayer):
 
         part = 1
         for c in chunks:
-            job = executor.submit(get_degree_lists_vertices, G, c, calcUntilLayer)
+            job = executor.submit(get_degree_lists_vertices, G, c, calc_until_layer)
             futures[job] = part
             part += 1
 
@@ -399,10 +395,15 @@ def exec_bfs(G, workers, calcUntilLayer):
     t1 = time()
     logging.info('Execution time - BFS: {}m'.format((t1 - t0) / 60))
 
-    return
-
 
 def generate_distances_network_part1(workers):
+    """
+    Load and merge distances from all chunks. Rearrange them grouped by layer:
+        layer -> v1, v2 -> distance
+    Args:
+        workers: int
+            Number of chunks, needed for loading distances from disk
+    """
     parts = workers
     weights_distances = {}
     for part in range(1, parts + 1):
@@ -410,8 +411,8 @@ def generate_distances_network_part1(workers):
         logging.info('Executing part {}...'.format(part))
         distances = restore_variable_from_disk('distances-' + str(part))
 
-        for vertices, layers in distances.iteritems():
-            for layer, distance in layers.iteritems():
+        for vertices, distance_by_layer in distances.iteritems():
+            for layer, distance in distance_by_layer.iteritems():
                 vx = vertices[0]
                 vy = vertices[1]
                 if layer not in weights_distances:
@@ -422,10 +423,16 @@ def generate_distances_network_part1(workers):
 
     for layer, values in weights_distances.iteritems():
         save_variable_on_disk(values, 'weights_distances-layer-' + str(layer))
-    return
 
 
 def generate_distances_network_part2(workers):
+    """
+    Construct the skeleton of the context graph: a symmetric directed layer graph
+    with edges between each pair of nodes for which a distance (at that layer) exists.
+    Args:
+        workers: int
+            Number of chunks, needed for loading distances from disk
+    """
     parts = workers
     graphs = {}
     for part in range(1, parts + 1):
@@ -433,8 +440,8 @@ def generate_distances_network_part2(workers):
         logging.info('Executing part {}...'.format(part))
         distances = restore_variable_from_disk('distances-' + str(part))
 
-        for vertices, layers in distances.iteritems():
-            for layer, distance in layers.iteritems():
+        for vertices, distance_by_layer in distances.iteritems():
+            for layer, distance in distance_by_layer.iteritems():
                 vx = vertices[0]
                 vy = vertices[1]
                 if layer not in graphs:
@@ -450,12 +457,15 @@ def generate_distances_network_part2(workers):
     for layer, values in graphs.iteritems():
         save_variable_on_disk(values, 'graphs-layer-' + str(layer))
 
-    return
-
 
 def generate_distances_network_part3():
+    """
+    Create a probability weight for each edge in the layer graph. Weights are stored in a separate dictionary
+    per layer, of the form (node -> list of weights) [N.B. order of weights = order of neighbours]
+    Also execute some preprocessing for the alias method.
+    """
     layer = 0
-    while (is_pickle('graphs-layer-' + str(layer))):
+    while is_pickle('graphs-layer-' + str(layer)):
         graphs = restore_variable_from_disk('graphs-layer-' + str(layer))
         weights_distances = restore_variable_from_disk('weights_distances-layer-' + str(layer))
 
@@ -491,10 +501,12 @@ def generate_distances_network_part3():
 
     logging.info('Weights created.')
 
-    return
-
 
 def generate_distances_network_part4():
+    """
+    Merge the (unweighted) directed context graphs into a single graph containing
+    all layers, represented as a dictionary (layer -> node -> list of neighbours)
+    """
     logging.info('Consolidating graphs...')
     graphs_c = {}
     layer = 0
@@ -508,13 +520,16 @@ def generate_distances_network_part4():
     logging.info("Saving distancesNets on disk...")
     save_variable_on_disk(graphs_c, 'distances_nets_graphs')
     logging.info('Graphs consolidated.')
-    return
 
 
 def generate_distances_network_part5():
+    """
+    Merge the dictionaries holding the precomputed J-values of the alias method into a
+    single dictionary containing all layers (layer -> node -> J)
+    """
     alias_method_j_c = {}
     layer = 0
-    while (is_pickle('alias_method_j-layer-' + str(layer))):
+    while is_pickle('alias_method_j-layer-' + str(layer)):
         logging.info('Executing layer {}...'.format(layer))
         alias_method_j = restore_variable_from_disk('alias_method_j-layer-' + str(layer))
         alias_method_j_c[layer] = alias_method_j
@@ -524,13 +539,15 @@ def generate_distances_network_part5():
     logging.info("Saving nets_weights_alias_method_j on disk...")
     save_variable_on_disk(alias_method_j_c, 'nets_weights_alias_method_j')
 
-    return
-
 
 def generate_distances_network_part6():
+    """
+    Merge the dictionaries holding the precomputed q-values of the alias method into a
+    single dictionary containing all layers (layer -> node -> q)
+    """
     alias_method_q_c = {}
     layer = 0
-    while (is_pickle('alias_method_q-layer-' + str(layer))):
+    while is_pickle('alias_method_q-layer-' + str(layer)):
         logging.info('Executing layer {}...'.format(layer))
         alias_method_q = restore_variable_from_disk('alias_method_q-layer-' + str(layer))
         alias_method_q_c[layer] = alias_method_q
@@ -540,10 +557,15 @@ def generate_distances_network_part6():
     logging.info("Saving nets_weights_alias_method_q on disk...")
     save_variable_on_disk(alias_method_q_c, 'nets_weights_alias_method_q')
 
-    return
-
 
 def generate_distances_network(workers):
+    """
+    Construct the layered context graphs in six steps, each of which
+    is implemented in a separate method.
+    Args:
+        workers: int
+            Number of chunks
+    """
     t0 = time()
     logging.info('Creating distance network...')
 
@@ -601,8 +623,6 @@ def generate_distances_network(workers):
     t1 = time()
     t = t1 - t0
     logging.info('- Time - part 6: {}s'.format(t))
-
-    return
 
 
 def alias_setup(probs):

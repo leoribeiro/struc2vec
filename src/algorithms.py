@@ -6,7 +6,13 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from utils import *
 
 
-def generate_parameters_random_walk(workers):
+def generate_parameters_random_walk():
+    """
+    For each layer and node, compute the number of edges incident to the node with weight
+    larger than the average weight of all edges in that layer.
+
+    Store as a dictionary (layer -> node -> number of such neighbours)
+    """
     logging.info('Loading distances_nets from disk...')
 
     sum_weights = {}
@@ -17,10 +23,10 @@ def generate_parameters_random_walk(workers):
         logging.info('Executing layer {}...'.format(layer))
         weights = restore_variable_from_disk('distances_nets_weights-layer-' + str(layer))
 
-        for k, list_weights in weights.iteritems():
-            if (layer not in sum_weights):
+        for node, list_weights in weights.iteritems():
+            if layer not in sum_weights:
                 sum_weights[layer] = 0
-            if (layer not in amount_edges):
+            if layer not in amount_edges:
                 amount_edges[layer] = 0
 
             for w in list_weights:
@@ -46,12 +52,12 @@ def generate_parameters_random_walk(workers):
 
         amount_neighbours[layer] = {}
 
-        for k, list_weights in weights.iteritems():
+        for node, list_weights in weights.iteritems():
             cont_neighbours = 0
             for w in list_weights:
-                if (w > average_weight[layer]):
+                if w > average_weight[layer]:
                     cont_neighbours += 1
-            amount_neighbours[layer][k] = cont_neighbours
+            amount_neighbours[layer][node] = cont_neighbours
 
         logging.info('Layer {} executed.'.format(layer))
         layer += 1
@@ -70,6 +76,19 @@ def choose_neighbour(v, graphs, alias_method_j, alias_method_q, layer):
 
 
 def exec_random_walk(graphs, alias_method_j, alias_method_q, v, walk_length, amount_neighbours):
+    """
+    Execute a single random walk starting at a given node.
+    Args:
+        graphs:
+        alias_method_j:
+        alias_method_q:
+        v:
+        walk_length:
+        amount_neighbours:
+
+    Returns:
+
+    """
     original_v = v
     t0 = time()
     initial_layer = 0
@@ -81,18 +100,17 @@ def exec_random_walk(graphs, alias_method_j, alias_method_q, v, walk_length, amo
     while len(path) < walk_length:
         r = random.random()
 
-        if (r < 0.3):
+        if r < 0.3:
             v = choose_neighbour(v, graphs, alias_method_j, alias_method_q, layer)
             path.append(v)
 
         else:
             r = random.random()
-            limiar_moveup = prob_moveup(amount_neighbours[layer][v])
-            if (r > limiar_moveup):
-                if (layer > initial_layer):
+            if r > prob_moveup(amount_neighbours[layer][v]):
+                if layer > initial_layer:
                     layer = layer - 1
             else:
-                if ((layer + 1) in graphs and v in graphs[layer + 1]):
+                if (layer + 1) in graphs and v in graphs[layer + 1]:
                     layer = layer + 1
 
     t1 = time()
@@ -136,6 +154,18 @@ def generate_random_walks_large_graphs(num_walks, walk_length, workers, vertices
 
 
 def generate_random_walks(num_walks, walk_length, workers, vertices):
+    """
+    Execute and save random walks.
+    Args:
+        num_walks: int
+            number of walks to be performed on each node
+        walk_length: int
+            length of each random walk
+        workers: int
+            number of workers for parallel execution
+        vertices: list
+            starting nodes for the random walks
+    """
     logging.info('Loading distances_nets on disk...')
 
     graphs = restore_variable_from_disk('distances_nets_graphs')
@@ -180,7 +210,6 @@ def save_random_walks(walks):
                 line += str(v) + ' '
             line += '\n'
             file.write(line)
-    return
 
 
 def prob_moveup(amount_neighbours):

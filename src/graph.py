@@ -39,15 +39,6 @@ class Graph():
 
         return
 
-    def preprocess_degree_lists(self):
-
-        with ProcessPoolExecutor(max_workers=self.workers) as executor:
-            job = executor.submit(preprocess_degree_lists)
-
-            job.result()
-
-        return
-
     def create_vectors(self):
         logging.info("Creating degree vectors...")
         degrees = {}
@@ -85,10 +76,10 @@ class Graph():
 
         if compact_degree:
             logging.info("Recovering degreeList from disk...")
-            degreeList = restore_variable_from_disk('compactDegreeList')
+            degree_list = restore_variable_from_disk('compactDegreeList')
         else:
             logging.info("Recovering compactDegreeList from disk...")
-            degreeList = restore_variable_from_disk('degreeList')
+            degree_list = restore_variable_from_disk('degreeList')
 
         parts = self.workers
         chunks = partition(vertices, parts)
@@ -102,8 +93,8 @@ class Graph():
                 logging.info("Executing part {}...".format(part))
                 list_v = []
                 for v in c:
-                    list_v.append([vd for vd in degreeList.keys() if vd > v])
-                job = executor.submit(calc_distances_all, c, list_v, degreeList, part, compact_degree=compact_degree)
+                    list_v.append([vd for vd in degree_list.keys() if vd > v])
+                job = executor.submit(calc_distances_all, c, list_v, degree_list, part, compact_degree=compact_degree)
                 futures[job] = part
                 part += 1
 
@@ -173,7 +164,7 @@ class Graph():
     def preprocess_parameters_random_walk(self):
 
         with ProcessPoolExecutor(max_workers=1) as executor:
-            job = executor.submit(generate_parameters_random_walk, self.workers)
+            job = executor.submit(generate_parameters_random_walk)
 
             job.result()
 
