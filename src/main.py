@@ -59,14 +59,14 @@ def parse_args():
     return parser.parse_args()
 
 
-def read_graph():
+def read_graph(args):
     """
     Reads the input network.
     """
     logging.info(" - Loading graph...")
-    graph_dict = graph.load_edgelist(args.input, undirected=True)
+    graph_dict, in_degrees, out_degrees = graph.load_edgelist(args.input, args.directed)
     logging.info(" - Graph loaded.")
-    return graph_dict
+    return graph_dict, in_degrees, out_degrees
 
 
 def learn_embeddings():
@@ -87,13 +87,17 @@ def exec_struc2vec(args):
     """
     Pipeline for representational learning for all nodes in a graph.
     """
-    if (args.OPT3):
+    if args.directed and (args.OPT1 or args.OPT2 or args.OPT3):
+        raise NotImplementedError('optimisations not yet implemented for directed graphs')
+
+    if args.OPT3:
         until_layer = args.until_layer
     else:
         until_layer = None
 
-    graph_dict = read_graph()
-    G = graph.Graph(graph_dict, args.directed, args.workers, until_layer=until_layer)
+    graph_dict, in_degrees, out_degrees = read_graph(args)  # in_degrees = out_degrees = {} if not args.directed
+    G = graph.Graph(graph_dict, args.directed, args.workers, until_layer=until_layer, in_degrees=in_degrees,
+                    out_degrees=out_degrees)
 
     if args.OPT1:
         G.preprocess_neighbors_with_bfs_compact()

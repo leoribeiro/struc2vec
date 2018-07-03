@@ -8,11 +8,11 @@ from utils import *
 import os
 
 
-def get_degree_lists_vertices(g, vertices, calcUntilLayer):
+def get_degree_lists_vertices(g, vertices, calc_until_layer, is_directed, in_degrees, out_degrees):
     degree_list = {}
 
     for v in vertices:
-        degree_list[v] = get_degree_lists(g, v, calcUntilLayer)
+        degree_list[v] = get_degree_lists(g, v, calc_until_layer, is_directed, in_degrees, out_degrees)
 
     return degree_list
 
@@ -79,14 +79,22 @@ def get_compact_degree_lists(g, root, calc_until_layer):
     return lists
 
 
-def get_degree_lists(g, root, calc_until_layer):
+def get_degree_lists(g, root, calc_until_layer, is_directed, in_degrees, out_degrees):
     """
     Perform BFS to compute degree sequences at each k-distance ring around a given node.
     Args:
-        g: the graph dictionary
-        root: the initial node
-        calc_until_layer: the maximum distance
-
+        g: dict
+            the graph dictionary
+        root: int
+            the initial node
+        calc_until_layer: int
+            the maximum distance
+        is_directed: boolean
+            whether the graph is directed
+        in_degrees: dict
+            (weighted) incoming degree per node (directed graphs only)
+        out_degrees: dict
+            (weighted outgoing degree per node (directed graphs only)
     Returns:
     A dictionary mapping depths (int) to ordered degree sequences (np.array)
     """
@@ -109,7 +117,12 @@ def get_degree_lists(g, root, calc_until_layer):
         vertex = queue.popleft()
         time_to_depth_increase -= 1
 
-        l.append(len(g[vertex]))
+        if is_directed:
+            degree = in_degrees.get(vertex, 0), out_degrees.get(vertex, 0)
+        else:
+            degree = len(g[vertex])
+
+        l.append(degree)
 
         for v in g[vertex]:
             if vectors[v] == 0:
@@ -119,8 +132,7 @@ def get_degree_lists(g, root, calc_until_layer):
 
         if time_to_depth_increase == 0:
 
-            lp = np.array(l, dtype='float')
-            lp = np.sort(lp)
+            lp = finalise_degree_seq_(l, is_directed)
             lists[depth] = lp
             l = deque()
 
@@ -135,6 +147,24 @@ def get_degree_lists(g, root, calc_until_layer):
     logging.info('BFS vertex {}. Time: {}s'.format(root, (t1 - t0)))
 
     return lists
+
+
+def finalise_degree_seq_(l, is_directed):
+    if is_directed:
+        lp_in = []
+        lp_out = []
+        for in_degree, out_degree in l:
+            lp_in.append(in_degree)
+            lp_out.append(out_degree)
+        lp_in = np.array(lp_in, dtype='float')
+        lp_out = np.array(lp_out, dtype='float')
+        lp_in = np.sort(lp_in)
+        lp_out = np.sort(lp_out)
+        return lp_in, lp_out
+    else:
+        lp = np.array(l, dtype='float')
+        lp = np.sort(lp)
+    return lp
 
 
 def cost(a, b):
@@ -279,15 +309,26 @@ def calc_distances(part, compact_degree=False):
     save_variable_on_disk(distances, 'distances-' + str(part))
 
 
-def calc_distances_all(vertices, list_vertices, degree_list, part, compact_degree=False):
+def calc_distances_all(vertices, list_vertices, degree_list, part, compact_degree=False, is_directed=False):
     """
     Compute the structural distance between any pair of nodes.
     Args:
-        vertices: a chunk of vertices to compute distances between
-        list_vertices: a list of lists, containing for each vertex all other vertices to be compared with
-        degree_list: nested dictionary (vertex -> layer -> degree sequence)
-        part: index of the current chunk of vertices
-        compact_degree: boolean indicating whether to use the compact degree optimisation
+        vertices: list
+            a chunk of vertices to compute distances between
+        list_vertices: list
+            a list of lists, containing for each vertex all other vertices to be compared with
+        degree_list: dict
+            nested dictionary (vertex -> layer -> degree sequence)
+        part: int
+            index of the current chunk of vertices
+        compact_degree: boolean
+            indicating whether to use the compact degree optimisation
+        is_directed: boolean
+            whether the graph is directed
+        in_degrees: dict
+            (weighted) incoming degree per node (directed graphs only)
+        out_degrees: dict
+            (weighted outgoing degree per node (directed graphs only)
 
     Returns:
         None (stores pickle on disk)
@@ -310,13 +351,25 @@ def calc_distances_all(vertices, list_vertices, degree_list, part, compact_degre
             distances[v1, v2] = {}
 
             for layer in range(max_layer):
-                dist, path = fastdtw(lists_v1[layer], lists_v2[layer], radius=1, dist=dist_func)
-                distances[v1, v2][layer] = dist
+                distances[v1, v2][layer] = deg_seq_dist(lists_v1[layer], lists_v2[layer], dist_func, is_directed)
 
         cont += 1
 
     consolidate_distances(distances)
     save_variable_on_disk(distances, 'distances-' + str(part))
+
+
+def deg_seq_dist(seq1, seq2, dist_func, is_directed):
+    if is_directed:
+        # independent 2-dim dtw
+        seq1_in, seq1_out = seq1
+        seq2_in, seq2_out = seq2
+        dist_in, path_in = fastdtw(seq1_in, seq2_in, radius=1, dist=dist_func)
+        dist_out, path_out = fastdtw(seq1_out, seq2_out, radius=1, dist=dist_func)
+        return dist_in + dist_out
+    else:
+        dist, path = fastdtw(seq1, seq2, radius=1, dist=dist_func)
+        return dist
 
 
 def consolidate_distances(distances):
@@ -369,7 +422,7 @@ def exec_bfs_compact(G, workers, calc_until_layer):
     logging.info('Execution time - BFS: {}m'.format((t1 - t0) / 60))
 
 
-def exec_bfs(G, workers, calc_until_layer):
+def exec_bfs(G, workers, calc_until_layer, is_directed, in_degrees, out_degrees):
     futures = {}
     degree_list = {}
 
@@ -382,7 +435,8 @@ def exec_bfs(G, workers, calc_until_layer):
 
         part = 1
         for c in chunks:
-            job = executor.submit(get_degree_lists_vertices, G, c, calc_until_layer)
+            job = executor.submit(get_degree_lists_vertices, G, c, calc_until_layer, is_directed, in_degrees,
+                                  out_degrees)
             futures[job] = part
             part += 1
 
@@ -390,7 +444,7 @@ def exec_bfs(G, workers, calc_until_layer):
             dl = job.result()
             degree_list.update(dl)
 
-    logging.info("Saving degreeList on disk...")
+    logging.info('Saving degreeList on disk ... (is_directed={})'.format(is_directed))
     save_variable_on_disk(degree_list, 'degreeList')
     t1 = time()
     logging.info('Execution time - BFS: {}m'.format((t1 - t0) / 60))

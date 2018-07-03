@@ -10,7 +10,7 @@ from algorithms_distances import *
 
 
 class Graph():
-    def __init__(self, d, is_directed, workers, until_layer=None):
+    def __init__(self, d, is_directed, workers, until_layer=None, in_degrees=None, out_degrees=None):
 
         self.G = d
         self.num_vertices = number_of_nodes_(d)
@@ -18,13 +18,17 @@ class Graph():
         self.is_directed = is_directed
         self.workers = workers
         self.calc_until_layer = until_layer
+        self.in_degrees = in_degrees
+        self.out_degrees = out_degrees
+        logging.info('Graph - is_directed: {}'.format(self.is_directed))
         logging.info('Graph - Number of vertices: {}'.format(self.num_vertices))
         logging.info('Graph - Number of edges: {}'.format(self.num_edges))
 
     def preprocess_neighbors_with_bfs(self):
 
         with ProcessPoolExecutor(max_workers=self.workers) as executor:
-            job = executor.submit(exec_bfs, self.G, self.workers, self.calc_until_layer)
+            job = executor.submit(exec_bfs, self.G, self.workers, self.calc_until_layer, self.is_directed,
+                                  self.in_degrees, self.out_degrees)
 
             job.result()
 
@@ -94,7 +98,8 @@ class Graph():
                 list_v = []
                 for v in c:
                     list_v.append([vd for vd in degree_list.keys() if vd > v])
-                job = executor.submit(calc_distances_all, c, list_v, degree_list, part, compact_degree=compact_degree)
+                job = executor.submit(calc_distances_all, c, list_v, degree_list, part, compact_degree=compact_degree,
+                                      is_directed=self.is_directed)
                 futures[job] = part
                 part += 1
 
@@ -191,12 +196,20 @@ class Graph():
         return
 
 
-def load_edgelist(file_, undirected=True):
+def load_edgelist(file_, directed=False):
     """
-    Loads an edgelist into a dictionary of (outgoing) neighbours.
-    Undirected graphs represented as *symmetric* directed graphs.
+    Loads an edgelist into a symmetric dictionary (the skeleton). When specified directed=True, also stores
+    dictionaries with incoming and outgoing degree of each node.
+    Args:
+        file_: the path of the edgelist file
+        directed: whether the graph is directed
+
+    Returns: (dict, dict, dict)
+        Returns skeleton, in_degrees, out_degrees. The latter two are empty if directed=False.
     """
-    d = {}
+    skeleton = {}
+    in_degrees = {}
+    out_degrees = {}
     with open(file_) as f:
         for l in f:
             if len(l.strip().split()[:2]) > 1:
@@ -204,23 +217,48 @@ def load_edgelist(file_, undirected=True):
                 x = int(x)
                 y = int(y)
 
-                if x not in d:
-                    d[x] = []
-                if y not in d:
-                    d[y] = []
+                if x not in skeleton:
+                    skeleton[x] = []
+                if y not in skeleton:
+                    skeleton[y] = []
 
-                d[x].append(y)
+                skeleton[x].append(y)
+                skeleton[y].append(x)
 
-                if undirected:
-                    d[y].append(x)
+                if directed:
+                    in_degrees[y] = in_degrees.get(y, 0) + 1
+                    out_degrees[x] = out_degrees.get(x, 0) + 1
 
             else:
                 x = l.strip().split()[:2]
                 x = int(x[0])
-                if x not in d:
-                    d[x] = []
+                if x not in skeleton:
+                    skeleton[x] = []
 
-    return remove_duplicates_(d)
+    skeleton = verify_consistency_(skeleton)
+
+    return skeleton, in_degrees, out_degrees
+
+
+def verify_consistency_(skeleton):
+    """
+    Remove duplicates from the graph skeleton and print a warning message if any duplicates were found,
+    as this will cause in_degrees and out_degrees to carry wrong values.
+    Args:
+        skeleton: dict
+            the graph dictionary
+
+    Returns: dict
+        the graph dictionary without duplicate neighbours
+    """
+    logging.info('Verifying consistency of edgelist ...')
+    cleaned_skeleton = remove_duplicates_(skeleton)
+    for k, v in skeleton.iteritems():
+        if len(v) != len(cleaned_skeleton[k]):
+            print('WARNING: The edgelist file contains duplicates. Directed degrees will not be accurate.')
+            print('Example duplicates amonst the neighbours of node {}'.format(k))
+            break
+    return cleaned_skeleton
 
 
 def remove_duplicates_(graph_dict):
