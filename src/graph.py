@@ -196,13 +196,17 @@ class Graph():
         return
 
 
-def load_edgelist(file_, directed=False):
+def load_edgelist(file_, directed=False, weighted=False):
     """
     Loads an edgelist into a symmetric dictionary (the skeleton). When specified directed=True, also stores
     dictionaries with incoming and outgoing degree of each node.
     Args:
-        file_: the path of the edgelist file
-        directed: whether the graph is directed
+        file_: str
+            the path of the edgelist file
+        directed: boolean
+            whether the graph is directed
+        weighted: boolean
+            whether the graph is weighted
 
     Returns: (dict, dict, dict)
         Returns skeleton, in_degrees, out_degrees. The latter two are empty if directed=False.
@@ -213,7 +217,13 @@ def load_edgelist(file_, directed=False):
     with open(file_) as f:
         for l in f:
             if len(l.strip().split()[:2]) > 1:
-                x, y = l.strip().split()[:2]
+                if weighted:
+                    x, y, w = l.strip().split()[:3]
+                    w = float(w)
+                else:
+                    x, y = l.strip().split()[:2]
+                    w = 1
+
                 x = int(x)
                 y = int(y)
 
@@ -226,8 +236,8 @@ def load_edgelist(file_, directed=False):
                 skeleton[y].append(x)
 
                 if directed:
-                    in_degrees[y] = in_degrees.get(y, 0) + 1
-                    out_degrees[x] = out_degrees.get(x, 0) + 1
+                    in_degrees[y] = in_degrees.get(y, 0) + w
+                    out_degrees[x] = out_degrees.get(x, 0) + w
 
             else:
                 x = l.strip().split()[:2]
@@ -256,7 +266,7 @@ def verify_consistency_(skeleton):
     for k, v in skeleton.iteritems():
         if len(v) != len(cleaned_skeleton[k]):
             print('WARNING: The edgelist file contains duplicates. Directed degrees will not be accurate.')
-            print('Example duplicates amonst the neighbours of node {}'.format(k))
+            print('Example duplicates amongst the neighbours of node {}'.format(k))
             break
     return cleaned_skeleton
 

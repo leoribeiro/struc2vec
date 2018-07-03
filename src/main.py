@@ -64,7 +64,7 @@ def read_graph(args):
     Reads the input network.
     """
     logging.info(" - Loading graph...")
-    graph_dict, in_degrees, out_degrees = graph.load_edgelist(args.input, args.directed)
+    graph_dict, in_degrees, out_degrees = graph.load_edgelist(args.input, args.directed, args.weighted)
     logging.info(" - Graph loaded.")
     return graph_dict, in_degrees, out_degrees
 
@@ -87,8 +87,10 @@ def exec_struc2vec(args):
     """
     Pipeline for representational learning for all nodes in a graph.
     """
-    if args.directed and (args.OPT1 or args.OPT2 or args.OPT3):
+    if (args.directed or args.weighted) and (args.OPT1 or args.OPT2 or args.OPT3):
         raise NotImplementedError('optimisations not yet implemented for directed graphs')
+    if args.weighted and not args.directed:
+        raise NotImplementedError('edge weights are only implemented for directed graphs')
 
     if args.OPT3:
         until_layer = args.until_layer
