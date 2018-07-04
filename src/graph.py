@@ -232,8 +232,9 @@ def load_edgelist(file_, directed=False, weighted=False):
                 if y not in skeleton:
                     skeleton[y] = []
 
-                skeleton[x].append(y)
-                skeleton[y].append(x)
+                if not directed or x < y:
+                    skeleton[x].append(y)
+                    skeleton[y].append(x)
 
                 if directed:
                     in_degrees[y] = in_degrees.get(y, 0) + w
