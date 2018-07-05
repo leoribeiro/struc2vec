@@ -8,7 +8,8 @@ from algorithms_distances import *
 
 
 class Graph():
-    def __init__(self, d, is_directed, workers, until_layer=None, in_degrees=None, out_degrees=None):
+    def __init__(self, d, is_directed, workers, until_layer=None, in_degrees=None, out_degrees=None,
+                 embedding_vertices=None):
 
         self.G = d
         self.num_vertices = number_of_nodes_(d)
@@ -18,6 +19,7 @@ class Graph():
         self.calc_until_layer = until_layer
         self.in_degrees = in_degrees
         self.out_degrees = out_degrees
+        self.embedding_vertices = embedding_vertices
         logging.info('Graph - is_directed: {}'.format(self.is_directed))
         logging.info('Graph - Number of vertices: {}'.format(self.num_vertices))
         logging.info('Graph - Number of edges: {}'.format(self.num_edges))
@@ -26,7 +28,7 @@ class Graph():
 
         with ProcessPoolExecutor(max_workers=self.workers) as executor:
             job = executor.submit(exec_bfs, self.G, self.workers, self.calc_until_layer, self.is_directed,
-                                  self.in_degrees, self.out_degrees)
+                                  self.in_degrees, self.out_degrees, self.embedding_vertices)
 
             job.result()
 
@@ -36,7 +38,7 @@ class Graph():
 
         with ProcessPoolExecutor(max_workers=self.workers) as executor:
             job = executor.submit(exec_bfs_compact, self.G, self.workers, self.calc_until_layer, self.is_directed,
-                                  self.in_degrees, self.out_degrees)
+                                  self.in_degrees, self.out_degrees, self.embedding_vertices)
 
             job.result()
 
@@ -52,7 +54,10 @@ class Graph():
         degrees = {}
         degrees_sorted = set()
         G = self.G
-        for v in G.keys():
+
+        vertices = G.keys() if self.embedding_vertices is None else self.embedding_vertices
+
+        for v in vertices:
             degree = len(G[v])
             degrees_sorted.add(degree)
             if degree not in degrees:
@@ -80,7 +85,7 @@ class Graph():
 
         futures = {}
 
-        vertices = list(reversed(sorted(self.G.keys())))
+        vertices = list(reversed(sorted(self.G.keys() if self.embedding_vertices is None else self.embedding_vertices)))
 
         if compact_degree:
             logging.info("Recovering degreeList from disk...")
@@ -101,7 +106,7 @@ class Graph():
                 logging.info("Executing part {}...".format(part))
                 list_v = []
                 for v in c:
-                    list_v.append([vd for vd in degree_list.keys() if vd > v])
+                    list_v.append([vd for vd in vertices if vd > v])
                 job = executor.submit(calc_distances_all, c, list_v, degree_list, part, compact_degree=compact_degree,
                                       is_directed=self.is_directed)
                 futures[job] = part
@@ -129,7 +134,8 @@ class Graph():
         futures = {}
 
         G = self.G
-        vertices = G.keys()
+        vertices = G.keys() if self.embedding_vertices is None else self.embedding_vertices
+        a_vertices = len(vertices)
 
         parts = self.workers
         chunks = partition(vertices, parts)
@@ -139,7 +145,7 @@ class Graph():
             logging.info("Split degree List...")
             part = 1
             for c in chunks:
-                job = executor.submit(split_degree_list, part, c, G, compact_degree)
+                job = executor.submit(split_degree_list, part, c, G, compact_degree, a_vertices)
                 job.result()
                 logging.info("degreeList {} completed.".format(part))
                 part += 1
@@ -181,19 +187,21 @@ class Graph():
 
     def simulate_walks(self, num_walks, walk_length):
 
+        vertices = self.G.keys() if self.embedding_vertices is None else self.embedding_vertices
+
         # for large graphs, it is serially executed, because of memory use.
-        if len(self.G) > 500000:
+        if len(self.embedding_vertices if self.embedding_vertices is not None else self.G) > 500000:
 
             with ProcessPoolExecutor(max_workers=1) as executor:
                 job = executor.submit(generate_random_walks_large_graphs, num_walks, walk_length, self.workers,
-                                      self.G.keys())
+                                      vertices)
 
                 job.result()
 
         else:
 
             with ProcessPoolExecutor(max_workers=1) as executor:
-                job = executor.submit(generate_random_walks, num_walks, walk_length, self.workers, self.G.keys())
+                job = executor.submit(generate_random_walks, num_walks, walk_length, self.workers, vertices)
 
                 job.result()
 

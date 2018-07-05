@@ -15,11 +15,15 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description="Run struc2vec.")
 
-    parser.add_argument('--input', nargs='?', default='graph/karate.edgelist',
+    parser.add_argument('--input', metavar='EDGELIST_FILE', nargs='?', default='graph/karate.edgelist',
                         help='Input graph path')
 
-    parser.add_argument('--output', nargs='?', default='emb/karate.emb',
+    parser.add_argument('--output', metavar='EMB_FILE', nargs='?', default='emb/karate.emb',
                         help='Embeddings path')
+
+    parser.add_argument('--embed-subset', metavar='NODELIST_FILE', type=str, default=None,
+                        help='Only compute embeddings for nodes in a given nodelist. '
+                             'Still uses the entire graph as context for the embedding.')
 
     parser.add_argument('--dimensions', type=int, default=128,
                         help='Number of dimensions. Default is 128.')
@@ -69,6 +73,18 @@ def read_graph(args):
     return graph_dict, in_degrees, out_degrees
 
 
+def read_embedding_set(args):
+    """
+    Reads a nodelist with vertices to be embedded.
+    """
+    vertices = set()
+    with open(args.embed_subset, 'r') as f:
+        for line in f:
+            vertex = int(line.strip())
+            vertices.add(vertex)
+    return list(vertices)
+
+
 def learn_embeddings():
     """
     Learn embeddings by optimizing the Skipgram objective using SGD.
@@ -95,9 +111,14 @@ def exec_struc2vec(args):
     else:
         until_layer = None
 
+    if args.embed_subset:
+        embedding_vertices = read_embedding_set(args)
+    else:
+        embedding_vertices = None
+
     graph_dict, in_degrees, out_degrees = read_graph(args)  # in_degrees = out_degrees = {} if not args.directed
     G = graph.Graph(graph_dict, args.directed, args.workers, until_layer=until_layer, in_degrees=in_degrees,
-                    out_degrees=out_degrees)
+                    out_degrees=out_degrees, embedding_vertices=embedding_vertices)
 
     if args.OPT1:
         G.preprocess_neighbors_with_bfs_compact()

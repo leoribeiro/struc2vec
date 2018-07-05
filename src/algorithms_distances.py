@@ -135,7 +135,7 @@ def get_degree_lists(g, root, calc_until_layer, is_directed, in_degrees, out_deg
     queue.append(root)
     vectors[root] = 1
 
-    l = deque()
+    l = []
 
     depth = 0
     pending_depth_increase = 0
@@ -162,7 +162,7 @@ def get_degree_lists(g, root, calc_until_layer, is_directed, in_degrees, out_deg
 
             lp = _finalise_degree_seq(l, is_directed)
             lists[depth] = lp
-            l = deque()
+            l = []
 
             if calc_until_layer == depth:
                 break
@@ -301,10 +301,8 @@ def _get_vertices(v, degree_v, degrees, a_vertices):
     except StopIteration:
         return list(vertices)
 
-    return list(vertices)
 
-
-def split_degree_list(part, c, G, compact_degree):
+def split_degree_list(part, c, G, compact_degree, a_vertices):
     if compact_degree:
         logging.info("Recovering compactDegreeList from disk...")
         degree_list = restore_variable_from_disk('compactDegreeList')
@@ -317,7 +315,6 @@ def split_degree_list(part, c, G, compact_degree):
 
     degree_lists_selected = {}
     vertices = {}
-    a_vertices = len(G)
 
     for v in c:
         nbs = _get_vertices(v, len(G[v]), degrees, a_vertices)
@@ -457,12 +454,12 @@ def _consolidate_distances(distances):
     logging.info('Distances consolidated.')
 
 
-def exec_bfs_compact(G, workers, calc_until_layer, is_directed, in_degrees, out_degrees):
+def exec_bfs_compact(G, workers, calc_until_layer, is_directed, in_degrees, out_degrees, embedding_vertices):
     futures = {}
     degree_list = {}
 
     t0 = time()
-    vertices = G.keys()
+    vertices = G.keys() if embedding_vertices is None else embedding_vertices
     parts = workers
     chunks = partition(vertices, parts)
 
@@ -485,12 +482,12 @@ def exec_bfs_compact(G, workers, calc_until_layer, is_directed, in_degrees, out_
     logging.info('Execution time - BFS: {}m'.format((t1 - t0) / 60))
 
 
-def exec_bfs(G, workers, calc_until_layer, is_directed, in_degrees, out_degrees):
+def exec_bfs(G, workers, calc_until_layer, is_directed, in_degrees, out_degrees, embedding_vertices):
     futures = {}
     degree_list = {}
 
     t0 = time()
-    vertices = G.keys()
+    vertices = G.keys() if embedding_vertices is None else embedding_vertices
     parts = workers
     chunks = partition(vertices, parts)
 
