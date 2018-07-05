@@ -1,10 +1,8 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 """Graph utilities."""
 
 from io import open
-from six import iterkeys
 from algorithms import *
 from algorithms_distances import *
 
@@ -277,7 +275,7 @@ def remove_duplicates_(graph_dict):
     Remove duplicates in the neighbourhood lists.
     """
     d = {}
-    for k in iterkeys(graph_dict):
+    for k in graph_dict.iterkeys():
         d[k] = sorted(set(graph_dict[k]))  # sorted: returns a list
     return d
 
