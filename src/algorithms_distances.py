@@ -17,16 +17,34 @@ def get_degree_lists_vertices(g, vertices, calc_until_layer, is_directed, in_deg
     return degree_list
 
 
-def get_compact_degree_lists_vertices(g, vertices, calc_until_layer):
+def get_compact_degree_lists_vertices(g, vertices, calc_until_layer, is_directed, in_degrees, out_degrees):
     degree_list = {}
 
     for v in vertices:
-        degree_list[v] = get_compact_degree_lists(g, v, calc_until_layer)
+        degree_list[v] = get_compact_degree_lists(g, v, calc_until_layer, is_directed, in_degrees, out_degrees)
 
     return degree_list
 
 
-def get_compact_degree_lists(g, root, calc_until_layer):
+def get_compact_degree_lists(g, root, calc_until_layer, is_directed, in_degrees, out_degrees):
+    """
+    Perform BFS to compute *compact* degree sequences at each k-distance ring around a given node.
+    Args:
+        g: dict
+            the graph dictionary
+        root: int
+            the initial node
+        calc_until_layer: int
+            the maximum distance
+        is_directed: boolean
+            whether the graph is directed
+        in_degrees: dict
+            (weighted) incoming degree per node (directed graphs only)
+        out_degrees: dict
+            (weighted outgoing degree per node (directed graphs only)
+    Returns:
+    A dictionary mapping depths (int) to CHANGE HERE
+    """
     t0 = time()
 
     lists = {}
@@ -35,7 +53,9 @@ def get_compact_degree_lists(g, root, calc_until_layer):
     queue = deque()
     queue.append(root)
     vectors[root] = 1
-    l = {}
+
+    l_in= {}
+    l_out = {}
 
     depth = 0
     pending_depth_increase = 0
@@ -45,10 +65,18 @@ def get_compact_degree_lists(g, root, calc_until_layer):
         vertex = queue.popleft()
         time_to_depth_increase -= 1
 
-        d = len(g[vertex])
-        if d not in l:
-            l[d] = 0
-        l[d] += 1
+        if is_directed:
+            degree_in = in_degrees.get(vertex, 0)
+            degree_out = out_degrees.get(vertex, 0)
+        else:
+            degree_in = degree_out = len(g[vertex])
+
+        if degree_in not in l_in:
+            l_in[degree_in] = 0
+        l_in[degree_in] += 1
+        if degree_out not in l_out:
+            l_out[degree_out] = 0
+        l_out[degree_out] += 1
 
         for v in g[vertex]:
             if vectors[v] == 0:
@@ -58,13 +86,11 @@ def get_compact_degree_lists(g, root, calc_until_layer):
 
         if time_to_depth_increase == 0:
 
-            list_d = []
-            for degree, freq in l.iteritems():
-                list_d.append((degree, freq))
-            list_d.sort(key=lambda x: x[0])
-            lists[depth] = np.array(list_d, dtype=np.int32)
+            lp = _finalise_degree_seq_compact(l_in, l_out, is_directed)
+            lists[depth] = lp
 
-            l = {}
+            l_in = {}
+            l_out = {}
 
             if calc_until_layer == depth:
                 break
@@ -96,7 +122,9 @@ def get_degree_lists(g, root, calc_until_layer, is_directed, in_degrees, out_deg
         out_degrees: dict
             (weighted outgoing degree per node (directed graphs only)
     Returns:
-    A dictionary mapping depths (int) to ordered degree sequences (np.array)
+    A dictionary mapping depths (int) to:
+        a) ordered degree sequences (np.array), if undirected, or
+        b) pairs of ordered in-degree and out-degree sequences (np.array), if directed
     """
     t0 = time()
 
@@ -164,6 +192,32 @@ def _finalise_degree_seq(l, is_directed):
     else:
         lp = np.array(l, dtype='float')
         lp = np.sort(lp)
+    return lp
+
+
+def _finalise_degree_seq_compact(l_in, l_out, is_directed):
+    if is_directed:
+        list_d = []
+        for degree, freq in l_in.iteritems():
+            list_d.append((degree, freq))
+        list_d.sort(key=lambda x: x[0])
+        lp_in = np.array(list_d, dtype=np.int32)
+
+        list_d = []
+        for degree, freq in l_out.iteritems():
+            list_d.append((degree, freq))
+        list_d.sort(key=lambda x: x[0])
+        lp_out = np.array(list_d, dtype=np.int32)
+
+        return lp_in, lp_out
+
+    else:
+        list_d = []
+        for degree, freq in l_in.iteritems():
+            list_d.append((degree, freq))
+        list_d.sort(key=lambda x: x[0])
+        lp = np.array(list_d, dtype=np.int32)
+
     return lp
 
 
@@ -395,7 +449,7 @@ def _consolidate_distances(distances):
     logging.info('Distances consolidated.')
 
 
-def exec_bfs_compact(G, workers, calc_until_layer):
+def exec_bfs_compact(G, workers, calc_until_layer, is_directed, in_degrees, out_degrees):
     futures = {}
     degree_list = {}
 
@@ -408,7 +462,8 @@ def exec_bfs_compact(G, workers, calc_until_layer):
 
         part = 1
         for c in chunks:
-            job = executor.submit(get_compact_degree_lists_vertices, G, c, calc_until_layer)
+            job = executor.submit(get_compact_degree_lists_vertices, G, c, calc_until_layer, is_directed, in_degrees,
+                                  out_degrees)
             futures[job] = part
             part += 1
 
@@ -416,7 +471,7 @@ def exec_bfs_compact(G, workers, calc_until_layer):
             dl = job.result()
             degree_list.update(dl)
 
-    logging.info("Saving degreeList on disk...")
+    logging.info('Saving degreeList on disk ... (is_directed={})'.format(is_directed))
     save_variable_on_disk(degree_list, 'compactDegreeList')
     t1 = time()
     logging.info('Execution time - BFS: {}m'.format((t1 - t0) / 60))
