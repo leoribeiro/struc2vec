@@ -132,7 +132,7 @@ def get_degree_lists(g, root, calc_until_layer, is_directed, in_degrees, out_deg
 
         if time_to_depth_increase == 0:
 
-            lp = finalise_degree_seq_(l, is_directed)
+            lp = _finalise_degree_seq(l, is_directed)
             lists[depth] = lp
             l = deque()
 
@@ -149,7 +149,7 @@ def get_degree_lists(g, root, calc_until_layer, is_directed, in_degrees, out_deg
     return lists
 
 
-def finalise_degree_seq_(l, is_directed):
+def _finalise_degree_seq(l, is_directed):
     if is_directed:
         lp_in = []
         lp_out = []
@@ -181,7 +181,7 @@ def cost_max(a, b):
     return ((m / mi) - 1) * max(a[1], b[1])
 
 
-def verify_degrees(degree_v_root, degree_a, degree_b):
+def _verify_degrees(degree_v_root, degree_a, degree_b):
     if degree_b == -1:
         degree_now = degree_a
     elif degree_a == -1:
@@ -194,7 +194,7 @@ def verify_degrees(degree_v_root, degree_a, degree_b):
     return degree_now
 
 
-def get_vertices(v, degree_v, degrees, a_vertices):
+def _get_vertices(v, degree_v, degrees, a_vertices):
     a_vertices_selected = 2 * math.log(a_vertices, 2)
     vertices = deque()
 
@@ -218,7 +218,7 @@ def get_vertices(v, degree_v, degrees, a_vertices):
             degree_a = degrees[degree_v]['after']
         if degree_b == -1 and degree_a == -1:
             raise StopIteration
-        degree_now = verify_degrees(degree_v, degree_a, degree_b)
+        degree_now = _verify_degrees(degree_v, degree_a, degree_b)
 
         while True:
             for v2 in degrees[degree_now]['vertices']:
@@ -242,7 +242,7 @@ def get_vertices(v, degree_v, degrees, a_vertices):
             if degree_b == -1 and degree_a == -1:
                 raise StopIteration
 
-            degree_now = verify_degrees(degree_v, degree_a, degree_b)
+            degree_now = _verify_degrees(degree_v, degree_a, degree_b)
 
     except StopIteration:
         return list(vertices)
@@ -266,7 +266,7 @@ def split_degree_list(part, c, G, compact_degree):
     a_vertices = len(G)
 
     for v in c:
-        nbs = get_vertices(v, len(G[v]), degrees, a_vertices)
+        nbs = _get_vertices(v, len(G[v]), degrees, a_vertices)
         vertices[v] = nbs
         degree_lists_selected[v] = degree_list[v]
         for n in nbs:
@@ -305,7 +305,7 @@ def calc_distances(part, compact_degree=False):
             t11 = time()
             logging.info('fastDTW between vertices ({}, {}). Time: {}s'.format(v1, v2, (t11 - t00)))
 
-    consolidate_distances(distances)
+    _consolidate_distances(distances)
     save_variable_on_disk(distances, 'distances-' + str(part))
 
 
@@ -351,15 +351,15 @@ def calc_distances_all(vertices, list_vertices, degree_list, part, compact_degre
             distances[v1, v2] = {}
 
             for layer in range(max_layer):
-                distances[v1, v2][layer] = deg_seq_dist(lists_v1[layer], lists_v2[layer], dist_func, is_directed)
+                distances[v1, v2][layer] = _deg_seq_dist(lists_v1[layer], lists_v2[layer], dist_func, is_directed)
 
         cont += 1
 
-    consolidate_distances(distances)
+    _consolidate_distances(distances)
     save_variable_on_disk(distances, 'distances-' + str(part))
 
 
-def deg_seq_dist(seq1, seq2, dist_func, is_directed):
+def _deg_seq_dist(seq1, seq2, dist_func, is_directed):
     if is_directed:
         # independent 2-dim dtw
         seq1_in, seq1_out = seq1
@@ -372,7 +372,7 @@ def deg_seq_dist(seq1, seq2, dist_func, is_directed):
         return dist
 
 
-def consolidate_distances(distances):
+def _consolidate_distances(distances):
     """
     In-place summing up of distances along the layers
     Args:
