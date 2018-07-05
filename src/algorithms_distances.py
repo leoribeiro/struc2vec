@@ -330,7 +330,21 @@ def split_degree_list(part, c, G, compact_degree):
     save_variable_on_disk(degree_lists_selected, 'split-degreeList-' + str(part))
 
 
-def calc_distances(part, compact_degree=False):
+def calc_distances(part, compact_degree=False, is_directed=False):
+    """
+    Compute the structural distance between pairs of nodes within a precomputed chunk of given ID.
+    Only considers pairs that have previously been identified as (roughly) similar in terms of undirected degree.
+    Args:
+        part: int
+            index of the chunk of vertices to be used
+        compact_degree: boolean
+            indicating whether to use the compact degree optimisation
+        is_directed: boolean
+            whether the graph is directed
+
+    Returns:
+        None (stores pickle on disk)
+    """
     vertices = restore_variable_from_disk('split-vertices-' + str(part))
     degree_list = restore_variable_from_disk('split-degreeList-' + str(part))
 
@@ -352,9 +366,7 @@ def calc_distances(part, compact_degree=False):
             distances[v1, v2] = {}
 
             for layer in range(0, max_layer):
-                dist, path = fastdtw(lists_v1[layer], lists_v2[layer], radius=1, dist=dist_func)
-
-                distances[v1, v2][layer] = dist
+                distances[v1, v2][layer] = _deg_seq_dist(lists_v1[layer], lists_v2[layer], dist_func, is_directed)
 
             t11 = time()
             logging.info('fastDTW between vertices ({}, {}). Time: {}s'.format(v1, v2, (t11 - t00)))
@@ -379,10 +391,6 @@ def calc_distances_all(vertices, list_vertices, degree_list, part, compact_degre
             indicating whether to use the compact degree optimisation
         is_directed: boolean
             whether the graph is directed
-        in_degrees: dict
-            (weighted) incoming degree per node (directed graphs only)
-        out_degrees: dict
-            (weighted outgoing degree per node (directed graphs only)
 
     Returns:
         None (stores pickle on disk)

@@ -87,8 +87,6 @@ def exec_struc2vec(args):
     """
     Pipeline for representational learning for all nodes in a graph.
     """
-    if (args.directed or args.weighted) and (args.OPT1 or args.OPT2 or args.OPT3):
-        raise NotImplementedError('optimisations not yet implemented for directed graphs')
     if args.weighted and not args.directed:
         raise NotImplementedError('edge weights are only implemented for directed graphs')
 

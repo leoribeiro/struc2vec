@@ -35,13 +35,19 @@ class Graph():
     def preprocess_neighbors_with_bfs_compact(self):
 
         with ProcessPoolExecutor(max_workers=self.workers) as executor:
-            job = executor.submit(exec_bfs_compact, self.G, self.workers, self.calc_until_layer)
+            job = executor.submit(exec_bfs_compact, self.G, self.workers, self.calc_until_layer, self.is_directed,
+                                  self.in_degrees, self.out_degrees)
 
             job.result()
 
         return
 
     def create_vectors(self):
+        """
+        Create an ordering of all network vertices by (undirected) degree.
+
+        Note for future improvements: It may be worth using k-d trees to improve this for the directed case.
+        """
         logging.info("Creating degree vectors...")
         degrees = {}
         degrees_sorted = set()
@@ -141,9 +147,9 @@ class Graph():
         with ProcessPoolExecutor(max_workers=self.workers) as executor:
 
             part = 1
-            for c in chunks:
+            for _ in chunks:
                 logging.info("Executing part {}...".format(part))
-                job = executor.submit(calc_distances, part, compact_degree=compact_degree)
+                job = executor.submit(calc_distances, part, compact_degree=compact_degree, is_directed=self.is_directed)
                 futures[job] = part
                 part += 1
 
@@ -244,12 +250,12 @@ def load_edgelist(file_, directed=False, weighted=False):
                 if x not in skeleton:
                     skeleton[x] = []
 
-    skeleton = verify_consistency_(skeleton)
+    skeleton = verify_consistency_(skeleton, directed)
 
     return skeleton, in_degrees, out_degrees
 
 
-def verify_consistency_(skeleton):
+def verify_consistency_(skeleton, is_directed):
     """
     Remove duplicates from the graph skeleton and print a warning message if any duplicates were found,
     as this will cause in_degrees and out_degrees to carry wrong values.
@@ -262,11 +268,12 @@ def verify_consistency_(skeleton):
     """
     logging.info('Verifying consistency of edgelist ...')
     cleaned_skeleton = remove_duplicates_(skeleton)
-    for k, v in skeleton.iteritems():
-        if len(v) != len(cleaned_skeleton[k]):
-            print('WARNING: The edgelist file contains duplicates. Directed degrees will not be accurate.')
-            print('Example duplicates amongst the neighbours of node {}'.format(k))
-            break
+    if is_directed:
+        for k, v in skeleton.iteritems():
+            if len(v) != len(cleaned_skeleton[k]):
+                print('WARNING: The edgelist file contains duplicates. Directed degrees will not be accurate.')
+                print('Example duplicates amongst the neighbours of node {}'.format(k))
+                break
     return cleaned_skeleton
 
 
