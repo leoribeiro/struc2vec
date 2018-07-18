@@ -5,6 +5,7 @@
 from io import open
 from algorithms import *
 from algorithms_distances import *
+from collections import defaultdict
 
 
 class Graph():
@@ -223,7 +224,7 @@ def load_edgelist(file_, directed=False, weighted=False):
     Returns: (dict, dict, dict)
         Returns skeleton, in_degrees, out_degrees. The latter two are empty if directed=False.
     """
-    skeleton = {}
+    skeleton = defaultdict(list)
     in_degrees = {}
     out_degrees = {}
     with open(file_) as f:
@@ -289,7 +290,7 @@ def remove_duplicates_(graph_dict):
     """
     Remove duplicates in the neighbourhood lists.
     """
-    d = {}
+    d = defaultdict(list)
     for k in graph_dict.iterkeys():
         d[k] = sorted(set(graph_dict[k]))  # sorted: returns a list
     return d
