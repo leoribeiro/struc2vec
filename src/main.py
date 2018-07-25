@@ -46,6 +46,9 @@ def parse_args():
     parser.add_argument('--workers', type=int, default=4,
                         help='Number of parallel workers. Default is 8.')
 
+    parser.add_argument('--bfs-workers', type=int, default=None,
+                        help='Number of parallel workers only for BFS stage. Default is using --workers.')
+
     parser.add_argument('--weighted', dest='weighted', action='store_true',
                         help='Boolean specifying (un)weighted. Default is unweighted.')
     parser.set_defaults(weighted=False)
@@ -117,7 +120,8 @@ def exec_struc2vec(args):
         embedding_vertices = None
 
     graph_dict, in_degrees, out_degrees = read_graph(args)  # in_degrees = out_degrees = {} if not args.directed
-    G = graph.Graph(graph_dict, args.directed, args.workers, until_layer=until_layer, in_degrees=in_degrees,
+    G = graph.Graph(graph_dict, args.directed, args.workers, bfs_workers=args.bfs_workers, until_layer=until_layer,
+                    in_degrees=in_degrees,
                     out_degrees=out_degrees, embedding_vertices=embedding_vertices)
 
     if args.OPT1:

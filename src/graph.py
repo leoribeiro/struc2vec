@@ -9,7 +9,7 @@ from collections import defaultdict
 
 
 class Graph():
-    def __init__(self, d, is_directed, workers, until_layer=None, in_degrees=None, out_degrees=None,
+    def __init__(self, d, is_directed, workers, bfs_workers = None, until_layer=None, in_degrees=None, out_degrees=None,
                  embedding_vertices=None):
 
         self.G = d
@@ -17,6 +17,7 @@ class Graph():
         self.num_edges = number_of_edges_(d, is_directed)
         self.is_directed = is_directed
         self.workers = workers
+        self.bfs_workers = bfs_workers
         self.calc_until_layer = until_layer
         self.in_degrees = in_degrees
         self.out_degrees = out_degrees
@@ -27,8 +28,10 @@ class Graph():
 
     def preprocess_neighbors_with_bfs(self):
 
-        with ProcessPoolExecutor(max_workers=self.workers) as executor:
-            job = executor.submit(exec_bfs, self.G, self.workers, self.calc_until_layer, self.is_directed,
+        workers = self.workers if self.bfs_workers is None else self.bfs_workers
+
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            job = executor.submit(exec_bfs, self.G, workers, self.calc_until_layer, self.is_directed,
                                   self.in_degrees, self.out_degrees, self.embedding_vertices)
 
             job.result()
@@ -37,8 +40,10 @@ class Graph():
 
     def preprocess_neighbors_with_bfs_compact(self):
 
-        with ProcessPoolExecutor(max_workers=self.workers) as executor:
-            job = executor.submit(exec_bfs_compact, self.G, self.workers, self.calc_until_layer, self.is_directed,
+        workers = self.workers if self.bfs_workers is None else self.bfs_workers
+
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            job = executor.submit(exec_bfs_compact, self.G, workers, self.calc_until_layer, self.is_directed,
                                   self.in_degrees, self.out_degrees, self.embedding_vertices)
 
             job.result()
