@@ -1,287 +1,316 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 """Graph utilities."""
 
-import logging
-import sys
-import math
 from io import open
-from os import path
-from time import time
-from glob import glob
-from six.moves import range, zip, zip_longest
-from six import iterkeys
-from collections import defaultdict, Iterable
-from multiprocessing import cpu_count
-import random
-from random import shuffle
-from itertools import product,permutations
-import collections
-
-from concurrent.futures import ProcessPoolExecutor
-
-from multiprocessing import Pool
-from multiprocessing import cpu_count
-
-#novas importações
-import numpy as np
-import operator
+from algorithms import *
+from algorithms_distances import *
+from collections import defaultdict
 
 
-class Graph(defaultdict):
-  """Efficient basic implementation of nx `Graph' â€“ Undirected graphs with self loops"""  
-  def __init__(self):
-    super(Graph, self).__init__(list)
+class Graph():
+    def __init__(self, d, is_directed, workers, bfs_workers = None, until_layer=None, in_degrees=None, out_degrees=None,
+                 embedding_vertices=None):
 
-  def nodes(self):
-    return self.keys()
+        self.G = d
+        self.num_vertices = number_of_nodes_(d)
+        self.num_edges = number_of_edges_(d, is_directed)
+        self.is_directed = is_directed
+        self.workers = workers
+        self.bfs_workers = bfs_workers
+        self.calc_until_layer = until_layer
+        self.in_degrees = in_degrees
+        self.out_degrees = out_degrees
+        self.embedding_vertices = embedding_vertices
+        logging.info('Graph - is_directed: {}'.format(self.is_directed))
+        logging.info('Graph - Number of vertices: {}'.format(self.num_vertices))
+        logging.info('Graph - Number of edges: {}'.format(self.num_edges))
 
-  def adjacency_iter(self):
-    return self.iteritems()
+    def preprocess_neighbors_with_bfs(self):
 
-  def subgraph(self, nodes={}):
-    subgraph = Graph()
-    
-    for n in nodes:
-      if n in self:
-        subgraph[n] = [x for x in self[n] if x in nodes]
-        
-    return subgraph
+        workers = self.workers if self.bfs_workers is None else self.bfs_workers
 
-  def make_undirected(self):
-  
-    t0 = time()
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            job = executor.submit(exec_bfs, self.G, workers, self.calc_until_layer, self.is_directed,
+                                  self.in_degrees, self.out_degrees, self.embedding_vertices)
 
-    for v in self.keys():
-      for other in self[v]:
-        if v != other:
-          self[other].append(v)
-    
-    t1 = time()
-    #logger.info('make_directed: added missing edges {}s'.format(t1-t0))
+            job.result()
 
-    self.make_consistent()
-    return self
+        return
 
-  def make_consistent(self):
-    t0 = time()
-    for k in iterkeys(self):
-      self[k] = list(sorted(set(self[k])))
-    
-    t1 = time()
-    #logger.info('make_consistent: made consistent in {}s'.format(t1-t0))
+    def preprocess_neighbors_with_bfs_compact(self):
 
-    #self.remove_self_loops()
+        workers = self.workers if self.bfs_workers is None else self.bfs_workers
 
-    return self
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            job = executor.submit(exec_bfs_compact, self.G, workers, self.calc_until_layer, self.is_directed,
+                                  self.in_degrees, self.out_degrees, self.embedding_vertices)
 
-  def remove_self_loops(self):
+            job.result()
 
-    removed = 0
-    t0 = time()
+        return
 
-    for x in self:
-      if x in self[x]: 
-        self[x].remove(x)
-        removed += 1
-    
-    t1 = time()
+    def create_vectors(self):
+        """
+        Create an ordering of all network vertices by (undirected) degree.
 
-    #logger.info('remove_self_loops: removed {} loops in {}s'.format(removed, (t1-t0)))
-    return self
+        Note for future improvements: It may be worth using k-d trees to improve this for the directed case.
+        """
+        logging.info("Creating degree vectors...")
+        degrees = {}
+        degrees_sorted = set()
+        G = self.G
 
-  def check_self_loops(self):
-    for x in self:
-      for y in self[x]:
-        if x == y:
-          return True
-    
-    return False
+        vertices = G.keys() if self.embedding_vertices is None else self.embedding_vertices
 
-  def has_edge(self, v1, v2):
-    if v2 in self[v1] or v1 in self[v2]:
-      return True
-    return False
+        for v in vertices:
+            degree = len(G[v])
+            degrees_sorted.add(degree)
+            if degree not in degrees:
+                degrees[degree] = {}
+                degrees[degree]['vertices'] = deque()
+            degrees[degree]['vertices'].append(v)
+        degrees_sorted = np.array(list(degrees_sorted), dtype='int')
+        degrees_sorted = np.sort(degrees_sorted)
 
-  def degree(self, nodes=None):
-    if isinstance(nodes, Iterable):
-      return {v:len(self[v]) for v in nodes}
-    else:
-      return len(self[nodes])
+        l = len(degrees_sorted)
+        for index, degree in enumerate(degrees_sorted):
+            if index > 0:
+                degrees[degree]['before'] = degrees_sorted[index - 1]
+            if index < (l - 1):
+                degrees[degree]['after'] = degrees_sorted[index + 1]
+        logging.info("Degree vectors created.")
+        logging.info("Saving degree vectors...")
+        save_variable_on_disk(degrees, 'degrees_vector')
 
-  def order(self):
-    "Returns the number of nodes in the graph"
-    return len(self)    
+    def calc_distances_all_vertices(self, compact_degree=False):
 
-  def number_of_edges(self):
-    "Returns the number of nodes in the graph"
-    return sum([self.degree(x) for x in self.keys()])/2
+        logging.info("Using compactDegree: {}".format(compact_degree))
+        if self.calc_until_layer:
+            logging.info("Calculations until layer: {}".format(self.calc_until_layer))
 
-  def number_of_nodes(self):
-    "Returns the number of nodes in the graph"
-    return self.order() 
+        futures = {}
 
-  def gToDict(self):
-    d = {}
-    for k,v in self.iteritems():
-      d[k] = v
+        vertices = list(reversed(sorted(self.G.keys() if self.embedding_vertices is None else self.embedding_vertices)))
+
+        if compact_degree:
+            logging.info("Recovering degreeList from disk...")
+            degree_list = restore_variable_from_disk('compactDegreeList')
+        else:
+            logging.info("Recovering compactDegreeList from disk...")
+            degree_list = restore_variable_from_disk('degreeList')
+
+        parts = self.workers
+        chunks = partition(vertices, parts)
+
+        t0 = time()
+
+        with ProcessPoolExecutor(max_workers=self.workers) as executor:
+
+            part = 1
+            for c in chunks:
+                logging.info("Executing part {}...".format(part))
+                list_v = []
+                for v in c:
+                    list_v.append([vd for vd in vertices if vd > v])
+                job = executor.submit(calc_distances_all, c, list_v, degree_list, part, compact_degree=compact_degree,
+                                      is_directed=self.is_directed)
+                futures[job] = part
+                part += 1
+
+            logging.info("Receiving results...")
+
+            for job in as_completed(futures):
+                job.result()
+                r = futures[job]
+                logging.info("Part {} Completed.".format(r))
+
+        logging.info('Distances calculated.')
+        t1 = time()
+        logging.info('Time : {}m'.format((t1 - t0) / 60))
+
+        return
+
+    def calc_distances(self, compact_degree=False):
+
+        logging.info("Using compactDegree: {}".format(compact_degree))
+        if self.calc_until_layer:
+            logging.info("Calculations until layer: {}".format(self.calc_until_layer))
+
+        futures = {}
+
+        G = self.G
+        vertices = G.keys() if self.embedding_vertices is None else self.embedding_vertices
+        a_vertices = len(vertices)
+
+        parts = self.workers
+        chunks = partition(vertices, parts)
+
+        with ProcessPoolExecutor(max_workers=1) as executor:
+
+            logging.info("Split degree List...")
+            part = 1
+            for c in chunks:
+                job = executor.submit(split_degree_list, part, c, G, compact_degree, a_vertices)
+                job.result()
+                logging.info("degreeList {} completed.".format(part))
+                part += 1
+
+        with ProcessPoolExecutor(max_workers=self.workers) as executor:
+
+            part = 1
+            for _ in chunks:
+                logging.info("Executing part {}...".format(part))
+                job = executor.submit(calc_distances, part, compact_degree=compact_degree, is_directed=self.is_directed)
+                futures[job] = part
+                part += 1
+
+            logging.info("Receiving results...")
+            for job in as_completed(futures):
+                job.result()
+                r = futures[job]
+                logging.info("Part {} completed.".format(r))
+
+        return
+
+    def create_distances_network(self):
+
+        with ProcessPoolExecutor(max_workers=1) as executor:
+            job = executor.submit(generate_distances_network, self.workers)
+
+            job.result()
+
+        return
+
+    def preprocess_parameters_random_walk(self):
+
+        with ProcessPoolExecutor(max_workers=1) as executor:
+            job = executor.submit(generate_parameters_random_walk)
+
+            job.result()
+
+        return
+
+    def simulate_walks(self, num_walks, walk_length):
+
+        vertices = self.G.keys() if self.embedding_vertices is None else self.embedding_vertices
+
+        # for large graphs, it is serially executed, because of memory use.
+        if len(self.embedding_vertices if self.embedding_vertices is not None else self.G) > 500000:
+
+            with ProcessPoolExecutor(max_workers=1) as executor:
+                job = executor.submit(generate_random_walks_large_graphs, num_walks, walk_length, self.workers,
+                                      vertices)
+
+                job.result()
+
+        else:
+
+            with ProcessPoolExecutor(max_workers=1) as executor:
+                job = executor.submit(generate_random_walks, num_walks, walk_length, self.workers, vertices)
+
+                job.result()
+
+        return
+
+
+def load_edgelist(file_, directed=False, weighted=False):
+    """
+    Loads an edgelist into a symmetric dictionary (the skeleton). When specified directed=True, also stores
+    dictionaries with incoming and outgoing degree of each node.
+    Args:
+        file_: str
+            the path of the edgelist file
+        directed: boolean
+            whether the graph is directed
+        weighted: boolean
+            whether the graph is weighted
+
+    Returns: (dict, dict, dict)
+        Returns skeleton, in_degrees, out_degrees. The latter two are empty if directed=False.
+    """
+    skeleton = defaultdict(list)
+    in_degrees = {}
+    out_degrees = {}
+    with open(file_) as f:
+        for l in f:
+            if len(l.strip().split()[:2]) > 1:
+                if weighted:
+                    x, y, w = l.strip().split()[:3]
+                    w = float(w)
+                else:
+                    x, y = l.strip().split()[:2]
+                    w = 1
+
+                x = int(x)
+                y = int(y)
+
+                if x not in skeleton:
+                    skeleton[x] = []
+                if y not in skeleton:
+                    skeleton[y] = []
+
+                if not directed or x < y:
+                    skeleton[x].append(y)
+                    skeleton[y].append(x)
+
+                if directed:
+                    in_degrees[y] = in_degrees.get(y, 0) + w
+                    out_degrees[x] = out_degrees.get(x, 0) + w
+
+            else:
+                x = l.strip().split()[:2]
+                x = int(x[0])
+                if x not in skeleton:
+                    skeleton[x] = []
+
+    skeleton = verify_consistency_(skeleton, directed)
+
+    return skeleton, in_degrees, out_degrees
+
+
+def verify_consistency_(skeleton, is_directed):
+    """
+    Remove duplicates from the graph skeleton and print a warning message if any duplicates were found,
+    as this will cause in_degrees and out_degrees to carry wrong values.
+    Args:
+        skeleton: dict
+            the graph dictionary
+
+    Returns: dict
+        the graph dictionary without duplicate neighbours
+    """
+    logging.info('Verifying consistency of edgelist ...')
+    cleaned_skeleton = remove_duplicates_(skeleton)
+    if is_directed:
+        for k, v in skeleton.iteritems():
+            if len(v) != len(cleaned_skeleton[k]):
+                print('WARNING: The edgelist file contains duplicates. Directed degrees will not be accurate.')
+                print('Example duplicates amongst the neighbours of node {}'.format(k))
+                break
+    return cleaned_skeleton
+
+
+def remove_duplicates_(graph_dict):
+    """
+    Remove duplicates in the neighbourhood lists.
+    """
+    d = defaultdict(list)
+    for k in graph_dict.iterkeys():
+        d[k] = sorted(set(graph_dict[k]))  # sorted: returns a list
     return d
 
-  def printAdjList(self):
-    for key,value in self.iteritems():
-      print (key,":",value)
+
+def number_of_nodes_(graph_dict):
+    """
+    Returns the number of nodes in a graph represented by a dictionary.
+    """
+    return len(graph_dict)
 
 
-
-def clique(size):
-    return from_adjlist(permutations(range(1,size+1)))
-
-# http://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks-in-python
-def grouper(n, iterable, padvalue=None):
-    "grouper(3, 'abcdefg', 'x') --> ('a','b','c'), ('d','e','f'), ('g','x','x')"
-    return zip_longest(*[iter(iterable)]*n, fillvalue=padvalue)
-
-def parse_adjacencylist(f):
-  adjlist = []
-  for l in f:
-    if l and l[0] != "#":
-      introw = [int(x) for x in l.strip().split()]
-      row = [introw[0]]
-      row.extend(set(sorted(introw[1:])))
-      adjlist.extend([row])
-  
-  return adjlist
-
-def parse_adjacencylist_unchecked(f):
-  adjlist = []
-  for l in f:
-    if l and l[0] != "#":
-      adjlist.extend([[int(x) for x in l.strip().split()]])
-  return adjlist
-
-def load_adjacencylist(file_, undirected=False, chunksize=10000, unchecked=True):
-
-  if unchecked:
-    parse_func = parse_adjacencylist_unchecked
-    convert_func = from_adjlist_unchecked
-  else:
-    parse_func = parse_adjacencylist
-    convert_func = from_adjlist
-
-  adjlist = []
-
-  t0 = time()
-
-  with open(file_) as f:
-    with ProcessPoolExecutor(max_workers=cpu_count()) as executor:
-      total = 0 
-      for idx, adj_chunk in enumerate(executor.map(parse_func, grouper(int(chunksize), f))):
-          adjlist.extend(adj_chunk)
-          total += len(adj_chunk)
-  
-  t1 = time()
-
-  logging.info('Parsed {} edges with {} chunks in {}s'.format(total, idx, t1-t0))
-
-  t0 = time()
-  G = convert_func(adjlist)
-  t1 = time()
-
-  logging.info('Converted edges to graph in {}s'.format(t1-t0))
-
-  if undirected:
-    t0 = time()
-    G = G.make_undirected()
-    t1 = time()
-    logging.info('Made graph undirected in {}s'.format(t1-t0))
-
-  return G 
-
-
-def load_edgelist(file_, undirected=True):
-  G = Graph()
-  with open(file_) as f:
-    for l in f:
-      if(len(l.strip().split()[:2]) > 1):
-        x, y = l.strip().split()[:2]
-        x = int(x)
-        y = int(y)
-        G[x].append(y)
-        if undirected:
-          G[y].append(x)
-      else:
-        x = l.strip().split()[:2]
-        x = int(x[0])
-        G[x] = []  
-  
-  G.make_consistent()
-  return G
-
-
-def load_matfile(file_, variable_name="network", undirected=True):
-  mat_varables = loadmat(file_)
-  mat_matrix = mat_varables[variable_name]
-
-  return from_numpy(mat_matrix, undirected)
-
-
-def from_networkx(G_input, undirected=True):
-    G = Graph()
-
-    for idx, x in enumerate(G_input.nodes_iter()):
-        for y in iterkeys(G_input[x]):
-            G[x].append(y)
-
-    if undirected:
-        G.make_undirected()
-
-    return G
-
-
-def from_numpy(x, undirected=True):
-    G = Graph()
-
-    if issparse(x):
-        cx = x.tocoo()
-        for i,j,v in zip(cx.row, cx.col, cx.data):
-            G[i].append(j)
-    else:
-      raise Exception("Dense matrices not yet supported.")
-
-    if undirected:
-        G.make_undirected()
-
-    G.make_consistent()
-    return G
-
-
-def from_adjlist(adjlist):
-    G = Graph()
-    
-    for row in adjlist:
-        node = row[0]
-        neighbors = row[1:]
-        G[node] = list(sorted(set(neighbors)))
-
-    return G
-
-
-def from_adjlist_unchecked(adjlist):
-    G = Graph()
-    
-    for row in adjlist:
-        node = row[0]
-        neighbors = row[1:]
-        G[node] = neighbors
-
-    return G
-
-
-def from_dict(d):
-    G = Graph()
-    for k,v in d.iteritems():
-      G[k] = v
-
-    return G
-
+def number_of_edges_(graph_dict, is_directed):
+    """
+    Returns the number of edges in a graph represented by a dictionary.
+    """
+    degree_sum = sum(len(graph_dict[node]) for node in graph_dict.keys())
+    return degree_sum if is_directed else degree_sum / 2
