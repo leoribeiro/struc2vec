@@ -15,7 +15,7 @@ Before to execute *struc2vec*, it is necessary to install the following packages
 <br/>
 ``pip install gensim``
 
-## Update
+### Update
 Python 3 version: https://github.com/sebkaz/struc2vec/tree/master
 
 ### Basic Usage
