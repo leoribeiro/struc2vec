@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from time import time
 import logging,inspect
-import cPickle as pickle
+# import cPickle as pickle
+import pickle
 from itertools import islice
 import os.path
 
@@ -16,12 +17,12 @@ def isPickle(fname):
 
 def chunks(data, SIZE=10000):
     it = iter(data)
-    for i in xrange(0, len(data), SIZE):
+    for i in range(0, len(data), SIZE):
         yield {k:data[k] for k in islice(it, SIZE)}
 
 def partition(lst, n):
     division = len(lst) / float(n)
-    return [ lst[int(round(division * i)): int(round(division * (i + 1)))] for i in xrange(n) ]
+    return [ lst[int(round(division * i)): int(round(division * (i + 1)))] for i in range(n) ]
 
 def restoreVariableFromDisk(name):
     logging.info('Recovering variable...')
@@ -38,6 +39,8 @@ def saveVariableOnDisk(f,name):
     logging.info('Saving variable on disk...')
     t0 = time()
     with open(folder_pickles + name + '.pickle', 'wb') as handle:
+        if type(f).__name__ == 'dict_keys':
+            f = list(f)
         pickle.dump(f, handle, protocol=pickle.HIGHEST_PROTOCOL)
     t1 = time()
     logging.info('Variable saved. Time: {}m'.format((t1-t0)/60))
